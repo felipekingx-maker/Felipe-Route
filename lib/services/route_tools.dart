@@ -76,7 +76,10 @@ class RouteTools {
 
         var score = duration;
 
-        if (finalDestinationIndex != null) {
+        // A primeira parada deve ser SEMPRE a mais rápida de alcançar
+        // a partir do GPS atual. A preferência pelo destino final só entra
+        // depois que a primeira parada já foi escolhida.
+        if (optimizedIndices.isNotEmpty && finalDestinationIndex != null) {
           final towardFinal = _matrixValue(
             matrix,
             candidateMatrixIndex,
