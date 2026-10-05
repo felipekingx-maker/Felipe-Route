@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../models/delivery_models.dart';
 import '../services/route_tools.dart';
@@ -16,6 +17,7 @@ class RoutePlannerScreen extends StatefulWidget {
 
 class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
   DeliveryRoute get route => widget.route;
+  bool _optimizing = false;
 
   Future<void> _settings() async {
     final minutes = TextEditingController(text: route.stopDurationMinutes.toString());
@@ -227,30 +229,89 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     );
   }
 
-  void _optimize() {
+  Future<void> _optimize() async {
+    if (_optimizing) return;
+
     if (!RouteTools.canOptimize(route.stops)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'A reotimização automática precisa de coordenadas em pelo menos duas paradas. Por enquanto você pode reordenar arrastando.',
+            'A reotimização precisa de coordenadas em pelo menos duas paradas.',
           ),
         ),
       );
       return;
     }
 
-    final optimized = RouteTools.optimize(
+    setState(() => _optimizing = true);
+
+    double? startLat;
+    double? startLng;
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        var permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+
+        if (permission == LocationPermission.always ||
+            permission == LocationPermission.whileInUse) {
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.bestForNavigation,
+            ),
+          ).timeout(const Duration(seconds: 10));
+
+          startLat = position.latitude;
+          startLng = position.longitude;
+        }
+      }
+    } catch (_) {
+      // Se o GPS não estiver disponível, a otimização ainda pode partir
+      // da primeira parada pendente.
+    }
+
+    final optimized = await RouteTools.optimizeByRoads(
       stops: route.stops,
+      startLatitude: startLat,
+      startLongitude: startLng,
       finalLatitude: route.finalDestinationLatitude,
       finalLongitude: route.finalDestinationLongitude,
     );
+
+    if (!mounted) return;
+
+    setState(() => _optimizing = false);
+
+    if (optimized == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível calcular a rota pelas ruas agora. A ordem atual foi mantida.',
+          ),
+        ),
+      );
+      return;
+    }
 
     setState(() {
       route.stops
         ..clear()
         ..addAll(optimized);
     });
-    RoutePersistenceService.saveRoute(route);
+
+    await RoutePersistenceService.saveRoute(route);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Rota otimizada pelo tempo de carro e sentido das ruas.',
+        ),
+      ),
+    );
   }
 
   String _timeText() {
@@ -322,9 +383,19 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                     children: [
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: _optimize,
-                          icon: const Icon(Icons.auto_awesome_rounded),
-                          label: const Text('REOTIMIZAR'),
+                          onPressed: _optimizing ? null : _optimize,
+                          icon: _optimizing
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.auto_awesome_rounded),
+                          label: Text(
+                            _optimizing ? 'CALCULANDO...' : 'REOTIMIZAR',
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
