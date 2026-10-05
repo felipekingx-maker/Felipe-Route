@@ -1,0 +1,10 @@
+Parada;Pacote;Endereco;Destinatario;Complemento
+11;BR000001;Rua Exemplo 100;Cliente A;Casa
+11;BR000002;Rua Exemplo 100;Cliente A;Casa
+11;BR000003;Rua Exemplo 100;Cliente A;Casa
+11+1;BR000004;Rua Exemplo 100;Cliente A;Casa
+11+2;BR000005;Rua Exemplo 100;Cliente A;Casa
+12;BR000006;Rua Exemplo 100;Cliente A;Casa
+12;BR000007;Rua Exemplo 100;Cliente A;Casa
+18;BR000008;Rua Exemplo 100;Cliente A;Casa
+19;BR000009;Rua Outra 250;Cliente B;Apto 12
