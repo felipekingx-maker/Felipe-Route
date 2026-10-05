@@ -4,8 +4,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/delivery_models.dart';
+import '../services/geocoding_service.dart';
 
-class RouteMapScreen extends StatelessWidget {
+class RouteMapScreen extends StatefulWidget {
   final DeliveryRoute route;
   final int? currentIndex;
 
@@ -16,14 +17,58 @@ class RouteMapScreen extends StatelessWidget {
   });
 
   @override
+  State<RouteMapScreen> createState() => _RouteMapScreenState();
+}
+
+class _RouteMapScreenState extends State<RouteMapScreen> {
+  bool _locating = false;
+  GeocodingProgress? _progress;
+
+  Future<void> _locateMissing() async {
+    if (_locating) return;
+
+    setState(() {
+      _locating = true;
+      _progress = null;
+    });
+
+    final found = await GeocodingService.fillMissingCoordinates(
+      widget.route,
+      onProgress: (progress) {
+        if (mounted) {
+          setState(() => _progress = progress);
+        }
+      },
+    );
+
+    if (!mounted) return;
+
+    setState(() => _locating = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          found == 0
+              ? 'Não foi possível localizar novos endereços.'
+              : '$found endereço(s) localizado(s) no mapa.',
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final route = widget.route;
     final withCoords = <({PhysicalStop stop, int index})>[];
+
     for (var i = 0; i < route.stops.length; i++) {
       final stop = route.stops[i];
       if (stop.latitude != null && stop.longitude != null) {
         withCoords.add((stop: stop, index: i));
       }
     }
+
+    final missingCount = route.stops.length - withCoords.length;
 
     if (withCoords.isEmpty) {
       return Scaffold(
@@ -33,25 +78,48 @@ class RouteMapScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w900),
           ),
         ),
-        body: const SafeArea(
+        body: SafeArea(
           child: Center(
             child: Padding(
-              padding: EdgeInsets.all(24),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.map_outlined, size: 64),
-                  SizedBox(height: 16),
-                  Text(
-                    'Ainda não há coordenadas nas paradas.',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                  const Icon(Icons.map_outlined, size: 64),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'As paradas ainda não têm coordenadas.',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
                     textAlign: TextAlign.center,
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    'O mapa será preenchido quando o romaneio trouxer latitude/longitude ou quando adicionarmos a geocodificação automática dos endereços.',
+                  const SizedBox(height: 8),
+                  const Text(
+                    'O Felipe Route pode tentar localizar os endereços do romaneio automaticamente.',
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: _locating ? null : _locateMissing,
+                    icon: _locating
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.location_searching_rounded),
+                    label: Text(
+                      _locating ? 'LOCALIZANDO...' : 'LOCALIZAR PARADAS',
+                    ),
+                  ),
+                  if (_progress != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      '${_progress!.done}/${_progress!.total} • ${_progress!.found} encontradas',
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -77,6 +145,14 @@ class RouteMapScreen extends StatelessWidget {
           'Mapa da rota',
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
+        actions: [
+          if (missingCount > 0)
+            IconButton(
+              tooltip: 'Localizar endereços sem coordenada',
+              onPressed: _locating ? null : _locateMissing,
+              icon: const Icon(Icons.location_searching_rounded),
+            ),
+        ],
       ),
       body: Stack(
         children: [
@@ -103,7 +179,7 @@ class RouteMapScreen extends StatelessWidget {
               MarkerLayer(
                 markers: withCoords.map((entry) {
                   final stopNumber = entry.index + 1;
-                  final isCurrent = currentIndex == entry.index;
+                  final isCurrent = widget.currentIndex == entry.index;
 
                   return Marker(
                     point: LatLng(
@@ -167,11 +243,14 @@ class RouteMapScreen extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
-                    if (withCoords.length < route.stops.length)
-                      Text(
-                        '${route.stops.length - withCoords.length} sem coordenada',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                    if (_locating)
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else if (missingCount > 0)
+                      Text('$missingCount sem coordenada'),
                   ],
                 ),
               ),
