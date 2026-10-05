@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/delivery_models.dart';
 import '../services/route_tools.dart';
+import '../services/route_persistence_service.dart';
 import 'route_map_screen.dart';
 
 class RoutePlannerScreen extends StatefulWidget {
@@ -60,6 +61,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         final value = destination.text.trim();
         route.finalDestinationAddress = value.isEmpty ? null : value;
       });
+      RoutePersistenceService.saveRoute(route);
     }
   }
 
@@ -167,17 +169,24 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
 
   Future<void> _add() async {
     final stop = await _editDialog();
-    if (stop != null) setState(() => route.stops.add(stop));
+    if (stop != null) {
+      setState(() => route.stops.add(stop));
+      RoutePersistenceService.saveRoute(route);
+    }
   }
 
   Future<void> _edit(int index) async {
     final stop = await _editDialog(route.stops[index]);
-    if (stop != null) setState(() => route.stops[index] = stop);
+    if (stop != null) {
+      setState(() => route.stops[index] = stop);
+      RoutePersistenceService.saveRoute(route);
+    }
   }
 
   void _remove(int index) {
     final removed = route.stops.removeAt(index);
     setState(() {});
+    RoutePersistenceService.saveRoute(route);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Parada removida: ' + removed.address),
@@ -194,6 +203,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       final item = route.stops.removeAt(index);
       route.stops.add(item);
     });
+    RoutePersistenceService.saveRoute(route);
   }
 
   void _optimize() {
@@ -219,6 +229,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         ..clear()
         ..addAll(optimized);
     });
+    RoutePersistenceService.saveRoute(route);
   }
 
   String _timeText() {
@@ -337,6 +348,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                           final item = route.stops.removeAt(oldIndex);
                           route.stops.insert(newIndex, item);
                         });
+                        RoutePersistenceService.saveRoute(route);
                       },
                       itemBuilder: (context, index) {
                         final stop = route.stops[index];
