@@ -1,7 +1,7 @@
 {
-  "version": "0.2.1",
-  "build": 3,
+  "version": "0.2.3",
+  "build": 5,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Corrige a importacao do romaneio da Shopee e o sistema de atualizacao remota.",
+  "notes": "Atualizacao automatica ao abrir o app, GPS em tempo real, mapa 3D, detalhes da parada no mapa e agrupamento por coordenadas com tolerancia de 5 metros.",
   "force": false
 }
