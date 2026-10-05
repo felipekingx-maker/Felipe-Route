@@ -143,9 +143,20 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           MyLocationTrackingMode.trackingGps,
         );
 
-        await controller.setTrackingCameraOptions(
-          tilt: _is3D ? 55 : 0,
-          duration: const Duration(milliseconds: 250),
+        final heading = position.heading.isFinite && position.heading >= 0
+            ? position.heading
+            : 0.0;
+
+        await controller.easeCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: LatLng(position.latitude, position.longitude),
+              zoom: _navigationTargetIndex != null ? 17.5 : 16.5,
+              bearing: heading,
+              tilt: _is3D ? 55 : 0,
+            ),
+          ),
+          duration: const Duration(milliseconds: 350),
         );
       }
     }
