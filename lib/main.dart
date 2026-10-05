@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'models/delivery_models.dart';
+import 'screens/import_manifest_screen.dart';
+
 void main() {
   runApp(const FelipeRouteApp());
 }
@@ -32,18 +35,51 @@ class FelipeRouteApp extends StatelessWidget {
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  DeliveryRoute? _route;
+
+  Future<void> _importManifest() async {
+    final route = await Navigator.of(context).push<DeliveryRoute>(
+      MaterialPageRoute(builder: (_) => const ImportManifestScreen()),
+    );
+
+    if (route != null && mounted) {
+      setState(() => _route = route);
+    }
+  }
+
+  void _continueRoute() {
+    final route = _route;
+    if (route == null || route.stops.isEmpty) {
+      _importManifest();
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => RouteScreen(route: route)),
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final route = _route;
+
     return Scaffold(
       appBar: AppBar(
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Felipe Route', style: TextStyle(fontWeight: FontWeight.w800)),
-            Text('Sua rota de hoje', style: TextStyle(fontSize: 12)),
+            Text('Felipe Route', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text('Entregas sem complicação', style: TextStyle(fontSize: 12)),
           ],
         ),
         actions: [
@@ -58,81 +94,61 @@ class HomeScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            const _RouteSummaryCard(),
+            _RouteSummaryCard(route: route),
             const SizedBox(height: 14),
-            _PrimaryAction(
+            _BigAction(
               icon: Icons.upload_file_rounded,
-              title: 'Importar manifesto',
-              subtitle: 'PDF, planilha ou arquivo da rota',
-              onTap: () {},
+              title: route == null ? 'Importar manifesto' : 'Trocar manifesto',
+              subtitle: 'CSV ou TXT no beta',
+              onTap: _importManifest,
             ),
             const SizedBox(height: 12),
-            _PrimaryAction(
-              icon: Icons.route_rounded,
-              title: 'Continuar rota',
-              subtitle: 'Ir direto para a próxima entrega',
+            _BigAction(
+              icon: Icons.navigation_rounded,
+              title: route == null ? 'Começar rota' : 'Continuar rota',
+              subtitle: route == null
+                  ? 'Importe o manifesto para iniciar'
+                  : 'Abrir a próxima entrega',
               highlighted: true,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const DeliveryScreen()),
-                );
-              },
+              onTap: _continueRoute,
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Acesso rápido',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _QuickAction(
-                    icon: Icons.list_alt_rounded,
-                    label: 'Paradas',
-                    onTap: () {},
+            if (route != null) ...[
+              const SizedBox(height: 20),
+              const Text(
+                'Rota carregada',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Card(
+                color: Colors.white,
+                child: ListTile(
+                  leading: const Icon(Icons.route_rounded),
+                  title: Text(
+                    route.name,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Text(
+                    '${route.stops.length} locais físicos • ${route.totalPackages} pacotes',
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _QuickAction(
-                    icon: Icons.map_outlined,
-                    label: 'Mapa',
-                    onTap: () {},
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _QuickAction(
-                    icon: Icons.inventory_2_outlined,
-                    label: 'Pacotes',
-                    onTap: () {},
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ],
         ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Início'),
-          NavigationDestination(icon: Icon(Icons.route_rounded), label: 'Rota'),
-          NavigationDestination(icon: Icon(Icons.list_alt_rounded), label: 'Paradas'),
-          NavigationDestination(icon: Icon(Icons.more_horiz_rounded), label: 'Mais'),
-        ],
       ),
     );
   }
 }
 
 class _RouteSummaryCard extends StatelessWidget {
-  const _RouteSummaryCard();
+  final DeliveryRoute? route;
+
+  const _RouteSummaryCard({required this.route});
 
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -142,16 +158,33 @@ class _RouteSummaryCard extends StatelessWidget {
               children: [
                 Icon(Icons.local_shipping_rounded),
                 SizedBox(width: 8),
-                Text('Resumo da rota',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                Text(
+                  'Resumo da rota',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
               ],
             ),
             const SizedBox(height: 16),
             Row(
-              children: const [
-                Expanded(child: _Metric(value: '84', label: 'Paradas')),
-                Expanded(child: _Metric(value: '126', label: 'Pacotes')),
-                Expanded(child: _Metric(value: '0', label: 'Entregues')),
+              children: [
+                Expanded(
+                  child: _Metric(
+                    value: '${route?.stops.length ?? 0}',
+                    label: 'Locais',
+                  ),
+                ),
+                Expanded(
+                  child: _Metric(
+                    value: '${route?.totalPackages ?? 0}',
+                    label: 'Pacotes',
+                  ),
+                ),
+                Expanded(
+                  child: _Metric(
+                    value: '${route?.deliveredStops ?? 0}',
+                    label: 'Entregues',
+                  ),
+                ),
               ],
             ),
           ],
@@ -171,23 +204,24 @@ class _Metric extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900),
+        ),
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
   }
 }
 
-class _PrimaryAction extends StatelessWidget {
+class _BigAction extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
   final bool highlighted;
   final VoidCallback onTap;
 
-  const _PrimaryAction({
+  const _BigAction({
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -197,10 +231,10 @@ class _PrimaryAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = Theme.of(context).colorScheme;
 
     return Card(
-      color: highlighted ? scheme.primaryContainer : Colors.white,
+      color: highlighted ? colors.primaryContainer : Colors.white,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
@@ -209,20 +243,26 @@ class _PrimaryAction extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                radius: 24,
+                radius: 25,
                 backgroundColor:
-                    highlighted ? scheme.primary : scheme.surfaceContainerHighest,
-                child: Icon(icon,
-                    color: highlighted ? scheme.onPrimary : scheme.onSurface),
+                    highlighted ? colors.primary : colors.surfaceContainerHighest,
+                child: Icon(
+                  icon,
+                  color: highlighted ? colors.onPrimary : colors.onSurface,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 17, fontWeight: FontWeight.w800)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(height: 3),
                     Text(subtitle),
                   ],
@@ -237,55 +277,57 @@ class _PrimaryAction extends StatelessWidget {
   }
 }
 
-class _QuickAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
+class RouteScreen extends StatefulWidget {
+  final DeliveryRoute route;
 
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
+  const RouteScreen({super.key, required this.route});
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          child: Column(
-            children: [
-              Icon(icon, size: 28),
-              const SizedBox(height: 7),
-              Text(label,
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  State<RouteScreen> createState() => _RouteScreenState();
 }
 
-class DeliveryScreen extends StatelessWidget {
-  const DeliveryScreen({super.key});
+class _RouteScreenState extends State<RouteScreen> {
+  int _index = 0;
+
+  PhysicalStop get _stop => widget.route.stops[_index];
+
+  void _next() {
+    if (_index < widget.route.stops.length - 1) {
+      setState(() => _index++);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fim da rota.')),
+      );
+    }
+  }
+
+  void _markDelivered() {
+    for (final package in _stop.packages) {
+      package.status = DeliveryStatus.delivered;
+    }
+    setState(() {});
+    _next();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final stop = _stop;
+    final groups = stop.packagesByStop;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Parada 11',
-            style: TextStyle(fontWeight: FontWeight.w800)),
+        title: Text(
+          'Entrega ${_index + 1}',
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: 14),
             child: Center(
-              child: Text('11 / 84',
-                  style: Theme.of(context).textTheme.titleMedium),
+              child: Text(
+                '${_index + 1} / ${widget.route.stops.length}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         ],
@@ -295,225 +337,174 @@ class DeliveryScreen extends StatelessWidget {
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                children: const [
-                  _NextStopCard(),
-                  SizedBox(height: 12),
-                  _PackageAlert(),
-                  SizedBox(height: 12),
-                  _GroupedStopsCard(),
-                  SizedBox(height: 12),
-                  _PackageListCard(),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+                children: [
+                  Card(
+                    color: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'ENDEREÇO',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            stop.address,
+                            style: const TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          if (stop.complement != null) ...[
+                            const SizedBox(height: 4),
+                            Text(stop.complement!),
+                          ],
+                          const SizedBox(height: 14),
+                          FilledButton.icon(
+                            onPressed: () {},
+                            icon: const Icon(Icons.navigation_rounded),
+                            label: const Text('NAVEGAR'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(52),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (stop.hasGroupedStops) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      color: const Color(0xFFFFF4D6),
+                      child: const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Há pacotes de várias paradas para entregar neste mesmo local.',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Card(
+                    color: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${stop.totalPackages} pacotes neste local',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...groups.entries.map(
+                            (entry) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    'Parada ${entry.key}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    '${entry.value} pacote${entry.value == 1 ? '' : 's'}',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    color: Colors.white,
+                    child: ExpansionTile(
+                      title: const Text(
+                        'Códigos dos pacotes',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      subtitle: Text('${stop.totalPackages} códigos'),
+                      children: stop.packages
+                          .map(
+                            (package) => ListTile(
+                              leading: const Icon(Icons.qr_code_2_rounded),
+                              title: Text(package.code),
+                              subtitle: package.recipient == null
+                                  ? null
+                                  : Text(package.recipient!),
+                              trailing: Text('P. ${package.stopLabel}'),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const _DeliveryBottomBar(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NextStopCard extends StatelessWidget {
-  const _NextStopCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('PRÓXIMA ENTREGA',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            const Text(
-              'Rua Exemplo, 123 - Centro',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.schedule_rounded, size: 20),
-                const SizedBox(width: 5),
-                const Text('3 min'),
-                const SizedBox(width: 18),
-                const Icon(Icons.straighten_rounded, size: 20),
-                const SizedBox(width: 5),
-                const Text('850 m'),
-                const Spacer(),
-                FilledButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.navigation_rounded),
-                  label: const Text('NAVEGAR'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PackageAlert extends StatelessWidget {
-  const _PackageAlert();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFFFFF4D6),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Icon(Icons.warning_amber_rounded),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Atenção: há pacotes de outras numerações para entregar neste mesmo local.',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GroupedStopsCard extends StatelessWidget {
-  const _GroupedStopsCard();
-
-  @override
-  Widget build(BuildContext context) {
-    const groups = [
-      ('11', 8),
-      ('12', 3),
-      ('18', 2),
-      ('11+1', 1),
-      ('11+2', 1),
-    ];
-
-    return Card(
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Expanded(
-                  child: Text('15 pacotes neste local',
-                      style:
-                          TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
-                ),
-                Icon(Icons.inventory_2_rounded),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ...groups.map(
-              (entry) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    Text('Parada ${entry.$1}',
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
-                    const Spacer(),
-                    Text('${entry.$2} pacote${entry.$2 == 1 ? '' : 's'}'),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PackageListCard extends StatelessWidget {
-  const _PackageListCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      child: ExpansionTile(
-        title: const Text('Ver códigos dos pacotes',
-            style: TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: const Text('15 pacotes esperados'),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        children: const [
-          ListTile(
-            dense: true,
-            leading: Icon(Icons.qr_code_2_rounded),
-            title: Text('BR123456789'),
-            trailing: Text('Parada 11'),
-          ),
-          ListTile(
-            dense: true,
-            leading: Icon(Icons.qr_code_2_rounded),
-            title: Text('BR123456790'),
-            trailing: Text('Parada 11+1'),
-          ),
-          ListTile(
-            dense: true,
-            leading: Icon(Icons.qr_code_2_rounded),
-            title: Text('BR123456791'),
-            trailing: Text('Parada 12'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DeliveryBottomBar extends StatelessWidget {
-  const _DeliveryBottomBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 12,
-      color: Colors.white,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.report_problem_outlined),
-                  label: const Text('PROBLEMA'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(54),
+            Material(
+              elevation: 10,
+              color: Colors.white,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _next,
+                          icon: const Icon(Icons.report_problem_outlined),
+                          label: const Text('PROBLEMA'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(56),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton.icon(
+                          onPressed: _markDelivered,
+                          icon: const Icon(Icons.check_circle_rounded),
+                          label: const Text('ENTREGUE'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(56),
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.check_circle_rounded),
-                  label: const Text('ENTREGUE'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(54),
-                    textStyle: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w900),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
