@@ -5,6 +5,7 @@ import 'screens/import_manifest_screen.dart';
 import 'screens/package_counter_screen.dart';
 import 'screens/route_planner_screen.dart';
 import 'screens/route_map_screen.dart';
+import 'services/update_service.dart';
 
 void main() {
   runApp(const FelipeRouteApp());
@@ -47,6 +48,90 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   DeliveryRoute? _route;
+  bool _checkingUpdate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkUpdates();
+    });
+  }
+
+  Future<void> _checkUpdates({bool manual = false}) async {
+    if (_checkingUpdate) return;
+    _checkingUpdate = true;
+
+    final update = await UpdateService.checkForUpdate();
+    _checkingUpdate = false;
+
+    if (!mounted) return;
+
+    if (update == null) {
+      if (manual) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Você já está usando a versão mais recente.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !update.force,
+      builder: (dialogContext) => PopScope(
+        canPop: !update.force,
+        child: AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.system_update_rounded),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text('Nova versão disponível'),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Felipe Route ${update.version}',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              if (update.notes != null && update.notes!.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(update.notes!),
+              ],
+              const SizedBox(height: 12),
+              const Text(
+                'Ao tocar em atualizar, o APK mais recente será aberto para download e instalação.',
+              ),
+            ],
+          ),
+          actions: [
+            if (!update.force)
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('DEPOIS'),
+              ),
+            FilledButton.icon(
+              onPressed: () async {
+                await UpdateService.openUpdate(update);
+                if (dialogContext.mounted && !update.force) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              icon: const Icon(Icons.download_rounded),
+              label: const Text('ATUALIZAR AGORA'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Future<void> _importManifest() async {
     final route = await Navigator.of(context).push<DeliveryRoute>(
@@ -121,6 +206,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 );
               }
+              if (value == 'update') {
+                _checkUpdates(manual: true);
+              }
             },
             itemBuilder: (context) => const [
               PopupMenuItem(
@@ -130,6 +218,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   leading: Icon(Icons.qr_code_scanner_rounded),
                   title: Text('Contador de pacotes'),
                   subtitle: Text('QR e código de barras'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'update',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.system_update_rounded),
+                  title: Text('Verificar atualizações'),
+                  subtitle: Text('Buscar nova versão do Felipe Route'),
                 ),
               ),
             ],
