@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/delivery_models.dart';
 import '../services/geocoding_service.dart';
 import '../services/navigation_service.dart';
+import '../services/route_persistence_service.dart';
 
 class RouteMapScreen extends StatefulWidget {
   final DeliveryRoute route;
@@ -185,12 +186,16 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       if (stop.latitude == null || stop.longitude == null) continue;
 
       final isCurrent = widget.currentIndex == i;
+      final isDelivered = stop.completed;
 
       await controller.addCircle(
         CircleOptions(
           geometry: LatLng(stop.latitude!, stop.longitude!),
           circleRadius: isCurrent ? 11 : 9,
-          circleColor: isCurrent ? '#F57C00' : '#1565C0',
+          circleColor: isDelivered
+              ? '#9E9E9E'
+              : (isCurrent ? '#F57C00' : '#1565C0'),
+          circleOpacity: isDelivered ? 0.55 : 1.0,
           circleStrokeColor: '#FFFFFF',
           circleStrokeWidth: 3,
         ),
@@ -202,7 +207,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           textField: '${i + 1}',
           textColor: '#FFFFFF',
           textSize: 12,
-          textHaloColor: isCurrent ? '#F57C00' : '#1565C0',
+          textOpacity: isDelivered ? 0.75 : 1.0,
+          textHaloColor: isDelivered
+              ? '#9E9E9E'
+              : (isCurrent ? '#F57C00' : '#1565C0'),
           textHaloWidth: 1,
         ),
       );
@@ -507,6 +515,20 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  if (stop.completed) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0E0E0),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'ENTREGUE',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   Text(
                     '${stop.totalPackages} pacote${stop.totalPackages == 1 ? '' : 's'} neste local',
                     style: const TextStyle(
@@ -557,17 +579,38 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: () async {
-                      Navigator.pop(sheetContext);
-                      await _startNavigation(index);
-                    },
-                    icon: const Icon(Icons.navigation_rounded),
-                    label: const Text('NAVEGAR NO APP'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
+                  if (stop.completed)
+                    FilledButton.tonalIcon(
+                      onPressed: () async {
+                        for (final package in stop.packages) {
+                          package.status = DeliveryStatus.pending;
+                        }
+                        await RoutePersistenceService.saveRoute(widget.route);
+                        if (!mounted) return;
+                        Navigator.pop(sheetContext);
+                        setState(() {});
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Entrega desfeita.')),
+                        );
+                      },
+                      icon: const Icon(Icons.undo_rounded),
+                      label: const Text('DESFAZER ENTREGA'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
+                    )
+                  else
+                    FilledButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(sheetContext);
+                        await _startNavigation(index);
+                      },
+                      icon: const Icon(Icons.navigation_rounded),
+                      label: const Text('NAVEGAR NO APP'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
