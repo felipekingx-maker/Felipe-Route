@@ -27,14 +27,13 @@ class _ImportManifestScreenState extends State<ImportManifestScreen> {
     });
 
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: const ['csv', 'txt'],
       );
 
-      if (result == null) return;
+      if (file == null) return;
 
-      final file = result.files.single;
       final bytes = await file.readAsBytes();
 
       final content = utf8.decode(bytes, allowMalformed: true);
