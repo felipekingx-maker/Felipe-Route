@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/delivery_models.dart';
 import '../services/geocoding_service.dart';
@@ -311,6 +312,224 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     );
   }
 
+  void _handleMapTap(LatLng coordinates) {
+    var nearestIndex = -1;
+    var nearestDistance = double.infinity;
+
+    for (var i = 0; i < widget.route.stops.length; i++) {
+      final stop = widget.route.stops[i];
+      if (stop.latitude == null || stop.longitude == null) continue;
+
+      final distance = Geolocator.distanceBetween(
+        coordinates.latitude,
+        coordinates.longitude,
+        stop.latitude!,
+        stop.longitude!,
+      );
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = i;
+      }
+    }
+
+    // Área de toque maior para facilitar o uso durante a rota.
+    if (nearestIndex >= 0 && nearestDistance <= 90) {
+      _showStopDetails(nearestIndex);
+    }
+  }
+
+  Future<void> _showStopDetails(int index) async {
+    final stop = widget.route.stops[index];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        child: Text('${index + 1}'),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Parada ${index + 1}',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              stop.address,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (stop.complement != null)
+                              Text(stop.complement!),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '${stop.totalPackages} pacote${stop.totalPackages == 1 ? '' : 's'} neste local',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...stop.packagesByStop.entries.map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Parada Shopee ${entry.key}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${entry.value} pacote${entry.value == 1 ? '' : 's'}',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const Text(
+                    'Pacotes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ...stop.packages.map(
+                    (package) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: const Icon(Icons.qr_code_2_rounded),
+                      title: Text(package.code),
+                      subtitle: package.recipient == null
+                          ? null
+                          : Text(package.recipient!),
+                      trailing: Text('P. ${package.stopLabel}'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      Navigator.pop(context, index);
+                    },
+                    icon: const Icon(Icons.navigation_rounded),
+                    label: const Text('NAVEGAR NO APP'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _openGoogleMaps(stop),
+                          icon: const Icon(Icons.map_rounded),
+                          label: const Text('GOOGLE MAPS'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(50),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _openWaze(stop),
+                          icon: const Icon(Icons.directions_car_rounded),
+                          label: const Text('WAZE'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(50),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openGoogleMaps(PhysicalStop stop) async {
+    final lat = stop.latitude;
+    final lng = stop.longitude;
+
+    final uri = lat != null && lng != null
+        ? Uri.parse(
+            'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
+          )
+        : Uri.https(
+            'www.google.com',
+            '/maps/dir/',
+            {'api': '1', 'destination': stop.address},
+          );
+
+    final opened = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível abrir o Google Maps.')),
+      );
+    }
+  }
+
+  Future<void> _openWaze(PhysicalStop stop) async {
+    final lat = stop.latitude;
+    final lng = stop.longitude;
+
+    final uri = lat != null && lng != null
+        ? Uri.parse('https://waze.com/ul?ll=$lat,$lng&navigate=yes')
+        : Uri.parse(
+            'https://waze.com/ul?q=${Uri.encodeComponent(stop.address)}&navigate=yes',
+          );
+
+    final opened = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível abrir o Waze.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final routeStops = widget.route.stops
@@ -377,6 +596,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             compassEnabled: true,
             rotateGesturesEnabled: true,
             tiltGesturesEnabled: true,
+            annotationConsumeTapEvents: const [],
+            onMapClick: (_, coordinates) => _handleMapTap(coordinates),
             onCameraTrackingDismissed: () {
               if (mounted) setState(() => _following = false);
             },
