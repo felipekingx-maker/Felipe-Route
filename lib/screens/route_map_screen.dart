@@ -207,9 +207,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           textField: '${i + 1}',
           textColor: '#FFFFFF',
           textSize: 13,
-          textAllowOverlap: true,
-          textIgnorePlacement: true,
-          textOptional: false,
           textOpacity: isDelivered ? 0.75 : 1.0,
           textHaloColor: isDelivered
               ? '#9E9E9E'
