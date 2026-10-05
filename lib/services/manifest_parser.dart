@@ -71,9 +71,18 @@ class ManifestParser {
       final normalizedAliases = entry.value.map(_normalizeHeader).toList();
       final index = headers.indexWhere((header) {
         if (normalizedAliases.contains(header)) return true;
-        if (header.length < 4) return false;
+
+        // Evita ambiguidades críticas como "parada" ser confundida
+        // com "parada física". Para esses campos, só aceitamos nome exato.
+        if (entry.key == 'stop' || entry.key == 'physical') {
+          return false;
+        }
+
+        if (header.length < 5) return false;
         return normalizedAliases.any(
-          (alias) => header.contains(alias) || alias.contains(header),
+          (alias) =>
+              alias.length >= 5 &&
+              (header.contains(alias) || alias.contains(header)),
         );
       });
       if (index >= 0) indexes[entry.key] = index;
