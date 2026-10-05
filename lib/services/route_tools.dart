@@ -9,9 +9,11 @@ class RouteTools {
   }
 
   /// Otimiza usando tempo real de condução pela malha viária.
-  /// A matriz do roteador respeita vias dirigíveis e sentido/mão da via.
+  /// A matriz respeita vias dirigíveis, sentidos e mão da via.
   static Future<List<PhysicalStop>?> optimizeByRoads({
     required List<PhysicalStop> stops,
+    double? startLatitude,
+    double? startLongitude,
     double? finalLatitude,
     double? finalLongitude,
   }) async {
@@ -21,7 +23,6 @@ class RouteTools {
     final withCoordinates = pending
         .where((s) => s.latitude != null && s.longitude != null)
         .toList();
-
     final withoutCoordinates = pending
         .where((s) => s.latitude == null || s.longitude == null)
         .toList();
@@ -30,11 +31,19 @@ class RouteTools {
       return List<PhysicalStop>.from(stops);
     }
 
-    final points = <({double lat, double lng})>[
-      ...withCoordinates.map(
+    final points = <({double lat, double lng})>[];
+    final hasStart = startLatitude != null && startLongitude != null;
+
+    if (hasStart) {
+      points.add((lat: startLatitude, lng: startLongitude));
+    }
+
+    final stopOffset = points.length;
+    points.addAll(
+      withCoordinates.map(
         (stop) => (lat: stop.latitude!, lng: stop.longitude!),
       ),
-    ];
+    );
 
     int? finalDestinationIndex;
     if (finalLatitude != null && finalLongitude != null) {
@@ -43,32 +52,43 @@ class RouteTools {
     }
 
     final matrix = await NavigationService.drivingDurationMatrix(points);
-    if (matrix == null || matrix.length < withCoordinates.length) {
+    if (matrix == null || matrix.length < points.length) {
       return null;
     }
 
-    var currentIndex = 0;
     final remaining = <int>{
       for (var i = 0; i < withCoordinates.length; i++) i,
     };
     final optimizedIndices = <int>[];
 
-    remaining.remove(currentIndex);
-    optimizedIndices.add(currentIndex);
+    int currentMatrixIndex;
+    if (hasStart) {
+      currentMatrixIndex = 0;
+    } else {
+      final firstStop = 0;
+      remaining.remove(firstStop);
+      optimizedIndices.add(firstStop);
+      currentMatrixIndex = stopOffset + firstStop;
+    }
 
     while (remaining.isNotEmpty) {
-      int? bestIndex;
+      int? bestStopIndex;
       double? bestScore;
 
-      for (final candidate in remaining) {
-        final duration = _matrixValue(matrix, currentIndex, candidate);
+      for (final candidateStopIndex in remaining) {
+        final candidateMatrixIndex = stopOffset + candidateStopIndex;
+        final duration =
+            _matrixValue(matrix, currentMatrixIndex, candidateMatrixIndex);
         if (duration == null) continue;
 
         var score = duration;
 
         if (finalDestinationIndex != null) {
-          final towardFinal =
-              _matrixValue(matrix, candidate, finalDestinationIndex);
+          final towardFinal = _matrixValue(
+            matrix,
+            candidateMatrixIndex,
+            finalDestinationIndex,
+          );
           if (towardFinal != null) {
             score += towardFinal * 0.15;
           }
@@ -76,18 +96,18 @@ class RouteTools {
 
         if (bestScore == null || score < bestScore) {
           bestScore = score;
-          bestIndex = candidate;
+          bestStopIndex = candidateStopIndex;
         }
       }
 
-      if (bestIndex == null) {
+      if (bestStopIndex == null) {
         optimizedIndices.addAll(remaining);
         break;
       }
 
-      optimizedIndices.add(bestIndex);
-      remaining.remove(bestIndex);
-      currentIndex = bestIndex;
+      optimizedIndices.add(bestStopIndex);
+      remaining.remove(bestStopIndex);
+      currentMatrixIndex = stopOffset + bestStopIndex;
     }
 
     final optimized =
@@ -110,12 +130,10 @@ class RouteTools {
   static int potentialDuplicateCount(List<PhysicalStop> stops) {
     final seen = <String>{};
     var duplicates = 0;
-
     for (final stop in stops) {
       final key = _normalize(stop.address, stop.complement);
       if (!seen.add(key)) duplicates++;
     }
-
     return duplicates;
   }
 
