@@ -165,6 +165,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     final controller = _controller;
     if (controller == null) return;
 
+    await controller.setSymbolTextAllowOverlap(true);
+    await controller.setSymbolTextIgnorePlacement(true);
+
     final routePoints = widget.route.stops
         .where((s) => s.latitude != null && s.longitude != null)
         .map((s) => LatLng(s.latitude!, s.longitude!))
