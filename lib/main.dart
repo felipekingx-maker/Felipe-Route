@@ -260,12 +260,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icons.map_rounded,
                 title: 'Mapa da rota',
                 subtitle: 'Ver paradas e sequência no mapa',
-                onTap: () {
-                  Navigator.of(context).push(
+                onTap: () async {
+                  final selectedIndex = await Navigator.of(context).push<int>(
                     MaterialPageRoute(
                       builder: (_) => RouteMapScreen(route: route),
                     ),
                   );
+
+                  if (selectedIndex != null && context.mounted) {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => RouteScreen(
+                          route: route,
+                          initialIndex: selectedIndex,
+                        ),
+                      ),
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 12),
@@ -504,8 +515,8 @@ class _RouteScreenState extends State<RouteScreen> {
         actions: [
           IconButton(
             tooltip: 'Mapa',
-            onPressed: () {
-              Navigator.of(context).push(
+            onPressed: () async {
+              final selectedIndex = await Navigator.of(context).push<int>(
                 MaterialPageRoute(
                   builder: (_) => RouteMapScreen(
                     route: widget.route,
@@ -513,6 +524,10 @@ class _RouteScreenState extends State<RouteScreen> {
                   ),
                 ),
               );
+
+              if (selectedIndex != null && mounted) {
+                setState(() => _index = selectedIndex);
+              }
             },
             icon: const Icon(Icons.map_rounded),
           ),
