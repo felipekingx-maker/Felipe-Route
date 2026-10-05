@@ -206,6 +206,27 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     RoutePersistenceService.saveRoute(route);
   }
 
+  void _toggleDelivered(int index) {
+    final stop = route.stops[index];
+    final markDelivered = !stop.completed;
+
+    for (final package in stop.packages) {
+      package.status =
+          markDelivered ? DeliveryStatus.delivered : DeliveryStatus.pending;
+    }
+
+    setState(() {});
+    RoutePersistenceService.saveRoute(route);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          markDelivered ? 'Parada marcada como entregue.' : 'Entrega desfeita.',
+        ),
+      ),
+    );
+  }
+
   void _optimize() {
     if (!RouteTools.canOptimize(route.stops)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -358,22 +379,63 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           child: ListTile(
                             leading: CircleAvatar(child: Text((index + 1).toString())),
-                            title: Text(stop.address, style: const TextStyle(fontWeight: FontWeight.w800)),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    stop.address,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      decoration: stop.completed
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                                if (stop.completed)
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 6),
+                                    child: Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 20,
+                                    ),
+                                  ),
+                              ],
+                            ),
                             subtitle: Text(
-                              stop.totalPackages.toString() +
+                              (stop.completed ? 'ENTREGUE • ' : '') +
+                                  stop.totalPackages.toString() +
                                   (stop.totalPackages == 1 ? ' pacote • ' : ' pacotes • ') +
                                   stop.packagesByStop.keys.map((e) => 'P. ' + e).join(', '),
                             ),
                             trailing: PopupMenuButton<String>(
                               onSelected: (value) {
                                 if (value == 'edit') _edit(index);
+                                if (value == 'delivered') _toggleDelivered(index);
                                 if (value == 'return') _returnLater(index);
                                 if (value == 'remove') _remove(index);
                               },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(value: 'edit', child: Text('Editar')),
-                                PopupMenuItem(value: 'return', child: Text('Deixar para retorno')),
-                                PopupMenuItem(value: 'remove', child: Text('Remover')),
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Editar'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delivered',
+                                  child: Text(
+                                    stop.completed
+                                        ? 'Desfazer entrega'
+                                        : 'Marcar como entregue',
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'return',
+                                  child: Text('Deixar para retorno'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'remove',
+                                  child: Text('Remover'),
+                                ),
                               ],
                             ),
                           ),
