@@ -1,7 +1,7 @@
 {
-  "version": "0.2.3",
-  "build": 5,
+  "version": "0.2.5",
+  "build": 7,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Atualizacao automatica ao abrir o app, GPS em tempo real, mapa 3D, detalhes da parada no mapa e agrupamento por coordenadas com tolerancia de 5 metros.",
+  "notes": "Persistencia do romaneio e progresso da rota, navegacao interna corrigida, ordem otimizada no mapa, paradas entregues apagadas com opcao de desfazer e contador com bipe, vibracao e rejeicao de duplicados.",
   "force": false
 }
