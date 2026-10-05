@@ -135,10 +135,42 @@ class ManifestParser {
     }
 
     final grouped = <String, List<DeliveryPackage>>{};
+    final coordinateGroups = <String, ({double lat, double lng})>{};
+
     for (final package in packages) {
-      final groupKey = package.physicalStopId?.trim().toLowerCase().isNotEmpty == true
-          ? 'id:${package.physicalStopId!.trim().toLowerCase()}'
-          : 'addr:${_normalizePhysicalAddress(package.address)}';
+      String groupKey;
+
+      if (package.physicalStopId?.trim().toLowerCase().isNotEmpty == true) {
+        groupKey = 'id:${package.physicalStopId!.trim().toLowerCase()}';
+      } else if (package.latitude != null && package.longitude != null) {
+        final lat = package.latitude!;
+        final lng = package.longitude!;
+
+        String? matchingKey;
+
+        for (final entry in coordinateGroups.entries) {
+          if (_distanceMeters(
+                lat,
+                lng,
+                entry.value.lat,
+                entry.value.lng,
+              ) <=
+              5) {
+            matchingKey = entry.key;
+            break;
+          }
+        }
+
+        if (matchingKey != null) {
+          groupKey = matchingKey;
+        } else {
+          groupKey = 'gps:${lat.toStringAsFixed(6)},${lng.toStringAsFixed(6)}';
+          coordinateGroups[groupKey] = (lat: lat, lng: lng);
+        }
+      } else {
+        groupKey =
+            'addr:${_physicalAddressFallback(package.address, package.complement)}';
+      }
 
       grouped.putIfAbsent(groupKey, () => []).add(package);
     }
@@ -236,8 +268,22 @@ class ManifestParser {
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
-  String _normalizePhysicalAddress(String address) {
-    var value = address
+  String _physicalAddressFallback(String address, String? complement) {
+    final base = _normalizeAddressPart(address);
+    final comp = _normalizeAddressPart(complement ?? '');
+
+    if (comp.isEmpty) return base;
+
+    final unitPattern = RegExp(
+      r'\b(ap|apto|apartamento|bloco|blk|torre|tower|unidade|unit|sala|conjunto|cj|casa|lote|quadra|qd|andar|pavimento|predio|edificio|condominio)\b',
+      caseSensitive: false,
+    );
+
+    return unitPattern.hasMatch(comp) ? '$base|unit:$comp' : base;
+  }
+
+  String _normalizeAddressPart(String value) {
+    var result = value
         .toLowerCase()
         .replaceAll('á', 'a')
         .replaceAll('à', 'a')
@@ -258,14 +304,9 @@ class ManifestParser {
         .replaceAll('û', 'u')
         .replaceAll('ç', 'c');
 
-    // CEP não define uma parada física e pode aparecer em apenas algumas linhas.
-    value = value.replaceAll(
-      RegExp(r'\b\d{5}[- ]?\d{3}\b'),
-      ' ',
-    );
+    result = result.replaceAll(RegExp(r'\b\d{5}[- ]?\d{3}\b'), ' ');
 
-    // Uniformiza abreviações comuns de logradouro.
-    value = value
+    return result
         .replaceAll(RegExp(r'\b(r|r\.)\b'), 'rua')
         .replaceAll(RegExp(r'\b(av|av\.)\b'), 'avenida')
         .replaceAll(RegExp(r'\b(rod|rod\.)\b'), 'rodovia')
@@ -274,8 +315,6 @@ class ManifestParser {
         .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-
-    return value;
   }
 
   double _distanceMeters(
