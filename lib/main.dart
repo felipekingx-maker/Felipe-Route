@@ -621,7 +621,17 @@ class _RouteScreenState extends State<RouteScreen> {
                           ],
                           const SizedBox(height: 14),
                           FilledButton.icon(
-                            onPressed: () {},
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => RouteMapScreen(
+                                    route: widget.route,
+                                    currentIndex: _index,
+                                    navigationTargetIndex: _index,
+                                  ),
+                                ),
+                              );
+                            },
                             icon: const Icon(Icons.navigation_rounded),
                             label: const Text('NAVEGAR'),
                             style: FilledButton.styleFrom(
