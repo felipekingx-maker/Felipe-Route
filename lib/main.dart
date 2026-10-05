@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'models/delivery_models.dart';
 import 'screens/import_manifest_screen.dart';
+import 'screens/package_counter_screen.dart';
 
 void main() {
   runApp(const FelipeRouteApp());
@@ -83,10 +84,29 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Configurações',
-            onPressed: () {},
-            icon: const Icon(Icons.settings_outlined),
+          PopupMenuButton<String>(
+            tooltip: 'Menu',
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (value) {
+              if (value == 'counter') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const PackageCounterScreen(),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'counter',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.qr_code_scanner_rounded),
+                  title: Text('Contador de pacotes'),
+                  subtitle: Text('QR e código de barras'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
