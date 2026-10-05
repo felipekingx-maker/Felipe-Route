@@ -15,48 +15,6 @@ void main() {
 class FelipeRouteApp extends StatelessWidget {
   const FelipeRouteApp({super.key});
 
-  Future<void> _deleteCurrentRoute() async {
-    final route = _route;
-    if (route == null) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Excluir rota atual?'),
-        content: Text(
-          'O romaneio "${route.name}" e todo o progresso salvo serão apagados deste aparelho.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('CANCELAR'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('EXCLUIR'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    await RoutePersistenceService.clear();
-
-    if (!mounted) return;
-
-    setState(() {
-      _route = null;
-      _savedCurrentIndex = 0;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Romaneio e progresso excluídos.'),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -287,6 +245,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await _saveRoute();
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _deleteCurrentRoute() async {
+    final route = _route;
+    if (route == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir rota atual?'),
+        content: Text(
+          'O romaneio "${route.name}" e todo o progresso salvo serão apagados deste aparelho.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('CANCELAR'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('EXCLUIR'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await RoutePersistenceService.clear();
+    if (!mounted) return;
+
+    setState(() {
+      _route = null;
+      _savedCurrentIndex = 0;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Romaneio e progresso excluídos.')),
+    );
   }
 
   @override
