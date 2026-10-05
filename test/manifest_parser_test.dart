@@ -26,7 +26,7 @@ void main() {
     expect(first.hasGroupedStops, isTrue);
   });
 
-  test('ignora complemento ao formar a parada física', () {
+  test('preserva unidade relevante sem GPS e ignora referencia fraca', () {
     const manifest = '''Parada;Pacote;Endereco;Complemento
 21;A1;Rua Luiz Izzo 779;Casa 1
 22;A2;Rua Luiz Izzo, 779;Fundos
@@ -35,9 +35,42 @@ void main() {
 
     final route = ManifestParser().parseText(manifest);
 
+    expect(route.stops.length, 2);
+
+    final casa = route.stops.firstWhere(
+      (stop) => stop.packages.any((p) => p.stopLabel == '21'),
+    );
+    expect(casa.totalPackages, 1);
+
+    final referencias = route.stops.firstWhere(
+      (stop) => stop.packages.any((p) => p.stopLabel == '22'),
+    );
+    expect(referencias.totalPackages, 2);
+    expect(referencias.packagesByStop.keys, containsAll(['22', '23']));
+  });
+
+  test('GPS igual em até 5m agrupa mesmo com casas diferentes', () {
+    const manifest = '''Parada;Pacote;Endereco;Complemento;Latitude;Longitude
+31;A1;Rua Exemplo 500;Casa 1;-23.000000;-46.000000
+32;A2;Rua Exemplo 500;Casa 50;-23.000020;-46.000010
+''';
+
+    final route = ManifestParser().parseText(manifest);
+
     expect(route.stops.length, 1);
-    expect(route.stops.first.totalPackages, 3);
-    expect(route.stops.first.packagesByStop.keys, containsAll(['21', '22', '23']));
+    expect(route.stops.first.totalPackages, 2);
+    expect(route.stops.first.packagesByStop.keys, containsAll(['31', '32']));
+  });
+
+  test('GPS acima de 5m mantém parada separada', () {
+    const manifest = '''Parada;Pacote;Endereco;Complemento;Latitude;Longitude
+41;A1;Rua Exemplo 900;Casa 1;-23.000000;-46.000000
+42;A2;Rua Exemplo 900;Casa 2;-23.000100;-46.000000
+''';
+
+    final route = ManifestParser().parseText(manifest);
+
+    expect(route.stops.length, 2);
   });
 
   test('mantém parada única quando endereço é diferente', () {
