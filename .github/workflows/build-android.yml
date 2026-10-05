@@ -1,0 +1,59 @@
+name: Build Felipe Route Beta
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android project
+        run: flutter create . --platforms=android --org com.feliperoute --project-name felipe_route
+
+      - name: Add camera permission
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          permission = '<uses-permission android:name="android.permission.CAMERA"/>'
+          if permission not in s:
+              s = s.replace("<manifest", "<manifest", 1)
+              marker = s.find(">")
+              s = s[:marker+1] + "\n    " + permission + s[marker+1:]
+          s = s.replace('android:label="felipe_route"', 'android:label="Felipe Route"')
+          p.write_text(s)
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk Felipe-Route-Beta.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Felipe-Route-Beta
+          path: Felipe-Route-Beta.apk
+          retention-days: 30
