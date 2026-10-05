@@ -137,7 +137,7 @@ class ManifestParser {
     for (final package in packages) {
       final groupKey = package.physicalStopId?.trim().toLowerCase().isNotEmpty == true
           ? 'id:${package.physicalStopId!.trim().toLowerCase()}'
-          : 'addr:${_normalizeAddress(package.address, package.complement)}';
+          : 'addr:${_normalizePhysicalAddress(package.address)}';
 
       grouped.putIfAbsent(groupKey, () => []).add(package);
     }
@@ -235,12 +235,45 @@ class ManifestParser {
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
-  String _normalizeAddress(String address, String? complement) {
-    final value = '$address ${complement ?? ''}'
+  String _normalizePhysicalAddress(String address) {
+    var value = address
         .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9áàâãéèêíìîóòôõúùûç ]'), ' ')
+        .replaceAll('á', 'a')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ã', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ì', 'i')
+        .replaceAll('î', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ò', 'o')
+        .replaceAll('ô', 'o')
+        .replaceAll('õ', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ç', 'c');
+
+    // CEP não define uma parada física e pode aparecer em apenas algumas linhas.
+    value = value.replaceAll(
+      RegExp(r'\b\d{5}[- ]?\d{3}\b'),
+      ' ',
+    );
+
+    // Uniformiza abreviações comuns de logradouro.
+    value = value
+        .replaceAll(RegExp(r'\b(r|r\.)\b'), 'rua')
+        .replaceAll(RegExp(r'\b(av|av\.)\b'), 'avenida')
+        .replaceAll(RegExp(r'\b(rod|rod\.)\b'), 'rodovia')
+        .replaceAll(RegExp(r'\b(estr|estr\.)\b'), 'estrada')
+        .replaceAll(RegExp(r'\bn[º°o]?\b'), ' ')
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+
     return value;
   }
 
