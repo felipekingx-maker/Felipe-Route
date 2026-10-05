@@ -30,17 +30,12 @@ class _ImportManifestScreenState extends State<ImportManifestScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['csv', 'txt'],
-        withData: true,
       );
 
       if (result == null) return;
 
       final file = result.files.single;
-      final bytes = file.bytes;
-
-      if (bytes == null) {
-        throw ManifestParseException('Não consegui ler o arquivo selecionado.');
-      }
+      final bytes = await file.readAsBytes();
 
       final content = utf8.decode(bytes, allowMalformed: true);
       final route = _parser.parseText(
