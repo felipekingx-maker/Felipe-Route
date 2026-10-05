@@ -1,7 +1,7 @@
 {
-  "version": "0.2.6",
-  "build": 8,
+  "version": "0.2.7",
+  "build": 9,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Inclui persistencia de rota e progresso, navegacao interna, marcacao de entrega no planejamento e no mapa, exclusao de romaneio salvo, contador com bipe e vibracao, rejeicao de duplicados e correcoes no mapa.",
+  "notes": "Roteamento real pelas ruas com sentido da via, otimização usando tempo de carro a partir do GPS atual, desenho da rota sobre as vias e opção de ordem manual das paradas.",
   "force": false
 }
