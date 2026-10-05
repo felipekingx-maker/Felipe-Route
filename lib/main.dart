@@ -4,6 +4,7 @@ import 'models/delivery_models.dart';
 import 'screens/import_manifest_screen.dart';
 import 'screens/package_counter_screen.dart';
 import 'screens/route_planner_screen.dart';
+import 'screens/route_map_screen.dart';
 
 void main() {
   runApp(const FelipeRouteApp());
@@ -157,6 +158,21 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: route == null ? _createManualRoute : _planRoute,
             ),
             const SizedBox(height: 12),
+            if (route != null) ...[
+              _BigAction(
+                icon: Icons.map_rounded,
+                title: 'Mapa da rota',
+                subtitle: 'Ver paradas e sequência no mapa',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => RouteMapScreen(route: route),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
             _BigAction(
               icon: Icons.navigation_rounded,
               title: route == null ? 'Começar rota' : 'Continuar rota',
@@ -377,6 +393,20 @@ class _RouteScreenState extends State<RouteScreen> {
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Mapa',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RouteMapScreen(
+                    route: widget.route,
+                    currentIndex: _index,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.map_rounded),
+          ),
           IconButton(
             tooltip: 'Editar rota',
             onPressed: () {
