@@ -241,6 +241,110 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     }
   }
 
+  Future<void> _startNavigation(int index) async {
+    if (_loadingNavigation || index < 0 || index >= widget.route.stops.length) {
+      return;
+    }
+
+    final position = _lastPosition;
+    final stop = widget.route.stops[index];
+
+    if (position == null) {
+      await _startGps();
+      if (mounted && _lastPosition == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aguardando localização do GPS.')),
+        );
+      }
+      return;
+    }
+
+    if (stop.latitude == null || stop.longitude == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Esta parada ainda não possui coordenadas.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _loadingNavigation = true;
+      _navigationTargetIndex = index;
+      _following = true;
+    });
+
+    final route = await NavigationService.drivingRoute(
+      fromLat: position.latitude,
+      fromLng: position.longitude,
+      toLat: stop.latitude!,
+      toLng: stop.longitude!,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _loadingNavigation = false;
+      _navigationRoute = route;
+    });
+
+    if (route == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível calcular a rota pelas ruas.'),
+        ),
+      );
+      return;
+    }
+
+    final controller = _controller;
+    if (controller != null && _styleLoaded) {
+      await controller.addLine(
+        LineOptions(
+          geometry: route.points,
+          lineColor: '#0B57D0',
+          lineWidth: 7,
+          lineOpacity: 0.95,
+        ),
+      );
+
+      await controller.updateMyLocationTrackingMode(
+        MyLocationTrackingMode.trackingGps,
+      );
+      await controller.setTrackingCameraOptions(
+        tilt: _is3D ? 58 : 0,
+        duration: const Duration(milliseconds: 300),
+      );
+      await controller.easeCamera(
+        CameraUpdate.zoomTo(17.5),
+        duration: const Duration(milliseconds: 300),
+      );
+    }
+  }
+
+  String _navigationSummary() {
+    final route = _navigationRoute;
+    final index = _navigationTargetIndex;
+
+    if (index == null) {
+      return 'Números do mapa = ordem otimizada da rota';
+    }
+
+    if (_loadingNavigation) {
+      return 'Calculando rota para a parada ${index + 1}...';
+    }
+
+    if (route == null) {
+      return 'Parada ${index + 1} selecionada';
+    }
+
+    final km = route.distanceMeters / 1000;
+    final minutes = (route.durationSeconds / 60).round();
+
+    return 'Parada ${index + 1} • ${km.toStringAsFixed(km < 10 ? 1 : 0)} km • ~$minutes min';
+  }
   Future<void> _centerOnUser() async {
     final controller = _controller;
     if (controller == null) return;
@@ -444,9 +548,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.pop(sheetContext);
-                      Navigator.pop(context, index);
+                      await _startNavigation(index);
                     },
                     icon: const Icon(Icons.navigation_rounded),
                     label: const Text('NAVEGAR NO APP'),
@@ -630,7 +734,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                         _gpsError ??
                             (_lastPosition == null
                                 ? 'Procurando sua localização...'
-                                : 'GPS ativo • precisão ±${_lastPosition!.accuracy.toStringAsFixed(0)} m'),
+                                : _navigationSummary()),
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
