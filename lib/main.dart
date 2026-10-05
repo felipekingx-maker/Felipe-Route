@@ -448,15 +448,27 @@ class _BigAction extends StatelessWidget {
 
 class RouteScreen extends StatefulWidget {
   final DeliveryRoute route;
+  final int initialIndex;
 
-  const RouteScreen({super.key, required this.route});
+  const RouteScreen({
+    super.key,
+    required this.route,
+    this.initialIndex = 0,
+  });
 
   @override
   State<RouteScreen> createState() => _RouteScreenState();
 }
 
 class _RouteScreenState extends State<RouteScreen> {
-  int _index = 0;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    final maxIndex = widget.route.stops.isEmpty ? 0 : widget.route.stops.length - 1;
+    _index = widget.initialIndex.clamp(0, maxIndex);
+  }
 
   PhysicalStop get _stop => widget.route.stops[_index];
 
