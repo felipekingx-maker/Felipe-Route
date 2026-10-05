@@ -602,7 +602,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                         minimumSize: const Size.fromHeight(52),
                       ),
                     )
-                  else
+                  else ...[
                     FilledButton.icon(
                       onPressed: () async {
                         Navigator.pop(sheetContext);
@@ -614,6 +614,29 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                         minimumSize: const Size.fromHeight(52),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: () async {
+                        for (final package in stop.packages) {
+                          package.status = DeliveryStatus.delivered;
+                        }
+                        await RoutePersistenceService.saveRoute(widget.route);
+                        if (!mounted) return;
+                        Navigator.pop(sheetContext);
+                        setState(() {});
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Parada marcada como entregue.'),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.check_circle_rounded),
+                      label: const Text('MARCAR COMO ENTREGUE'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Row(
                     children: [
