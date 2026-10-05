@@ -305,7 +305,50 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                               subtitle: Text(
                                 '${stop.totalPackages} pacote${stop.totalPackages == 1 ? '' : 's'} • ${stop.packagesByStop.keys.map((e) => 'P. $e').join(', ')}',
                               ),
-                              trailing: const Icon(Icons.drag_handle_rounded),
+                              trailing: SizedBox(
+                                width: 116,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Subir',
+                                      onPressed: index == 0
+                                          ? null
+                                          : () {
+                                              setSheetState(() {
+                                                final item =
+                                                    working.removeAt(index);
+                                                working.insert(index - 1, item);
+                                              });
+                                            },
+                                      icon: const Icon(
+                                        Icons.keyboard_arrow_up_rounded,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Descer',
+                                      onPressed: index == working.length - 1
+                                          ? null
+                                          : () {
+                                              setSheetState(() {
+                                                final item =
+                                                    working.removeAt(index);
+                                                working.insert(index + 1, item);
+                                              });
+                                            },
+                                      icon: const Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                      ),
+                                    ),
+                                    ReorderableDragStartListener(
+                                      index: index,
+                                      child: const Icon(
+                                        Icons.drag_handle_rounded,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           );
                         },
