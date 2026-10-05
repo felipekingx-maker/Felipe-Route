@@ -206,7 +206,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           geometry: LatLng(stop.latitude!, stop.longitude!),
           textField: '${i + 1}',
           textColor: '#FFFFFF',
-          textSize: 12,
+          textSize: 13,
+          textAllowOverlap: true,
+          textIgnorePlacement: true,
+          textOptional: false,
           textOpacity: isDelivered ? 0.75 : 1.0,
           textHaloColor: isDelivered
               ? '#9E9E9E'
