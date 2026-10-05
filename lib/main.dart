@@ -6,6 +6,7 @@ import 'screens/package_counter_screen.dart';
 import 'screens/route_planner_screen.dart';
 import 'screens/route_map_screen.dart';
 import 'services/update_service.dart';
+import 'services/route_persistence_service.dart';
 
 void main() {
   runApp(const FelipeRouteApp());
@@ -48,6 +49,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DeliveryRoute? _route;
+  int _savedCurrentIndex = 0;
   bool _checkingUpdate = false;
   DateTime? _lastAutomaticUpdateCheck;
 
@@ -55,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _restoreSavedRoute();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkUpdates();
     });
@@ -77,6 +80,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (shouldCheck) {
       _checkUpdates();
     }
+  }
+
+  Future<void> _restoreSavedRoute() async {
+    final saved = await RoutePersistenceService.loadRoute();
+    if (!mounted || saved == null) return;
+
+    setState(() {
+      _route = saved.route;
+      _savedCurrentIndex = saved.currentIndex;
+    });
+  }
+
+  Future<void> _saveRoute({int? currentIndex}) async {
+    final route = _route;
+    if (route == null) return;
+
+    final index = currentIndex ?? _savedCurrentIndex;
+    _savedCurrentIndex = index;
+    await RoutePersistenceService.saveRoute(
+      route,
+      currentIndex: index,
+    );
   }
 
   Future<void> _checkUpdates({bool manual = false}) async {
@@ -164,7 +189,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
 
     if (route != null && mounted) {
-      setState(() => _route = route);
+      setState(() {
+        _route = route;
+        _savedCurrentIndex = 0;
+      });
+      await _saveRoute(currentIndex: 0);
     }
   }
 
@@ -176,7 +205,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => RouteScreen(route: route)),
+      MaterialPageRoute(
+        builder: (_) => RouteScreen(
+          route: route,
+          initialIndex: _savedCurrentIndex,
+          onProgressChanged: (index) => _saveRoute(currentIndex: index),
+        ),
+      ),
     ).then((_) {
       if (mounted) setState(() {});
     });
@@ -184,10 +219,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _createManualRoute() {
     final route = DeliveryRoute(name: 'Rota manual', stops: []);
-    setState(() => _route = route);
+    setState(() {
+      _route = route;
+      _savedCurrentIndex = 0;
+    });
+    _saveRoute(currentIndex: 0);
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => RoutePlannerScreen(route: route)),
-    ).then((_) {
+    ).then((_) async {
+      await _saveRoute();
       if (mounted) setState(() {});
     });
   }
@@ -201,7 +241,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => RoutePlannerScreen(route: route)),
-    ).then((_) {
+    ).then((_) async {
+      await _saveRoute();
       if (mounted) setState(() {});
     });
   }
@@ -298,6 +339,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         builder: (_) => RouteScreen(
                           route: route,
                           initialIndex: selectedIndex,
+                          onProgressChanged: (index) =>
+                              _saveRoute(currentIndex: index),
                         ),
                       ),
                     );
@@ -485,11 +528,13 @@ class _BigAction extends StatelessWidget {
 class RouteScreen extends StatefulWidget {
   final DeliveryRoute route;
   final int initialIndex;
+  final ValueChanged<int>? onProgressChanged;
 
   const RouteScreen({
     super.key,
     required this.route,
     this.initialIndex = 0,
+    this.onProgressChanged,
   });
 
   @override
@@ -504,6 +549,10 @@ class _RouteScreenState extends State<RouteScreen> {
     super.initState();
     final maxIndex = widget.route.stops.isEmpty ? 0 : widget.route.stops.length - 1;
     _index = widget.initialIndex.clamp(0, maxIndex);
+    RoutePersistenceService.saveRoute(
+      widget.route,
+      currentIndex: _index,
+    );
   }
 
   PhysicalStop get _stop => widget.route.stops[_index];
@@ -511,11 +560,21 @@ class _RouteScreenState extends State<RouteScreen> {
   void _next() {
     if (_index < widget.route.stops.length - 1) {
       setState(() => _index++);
+      _persistProgress();
     } else {
+      _persistProgress();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Fim da rota.')),
       );
     }
+  }
+
+  void _persistProgress() {
+    RoutePersistenceService.saveRoute(
+      widget.route,
+      currentIndex: _index,
+    );
+    widget.onProgressChanged?.call(_index);
   }
 
   void _markDelivered() {
@@ -523,6 +582,16 @@ class _RouteScreenState extends State<RouteScreen> {
       package.status = DeliveryStatus.delivered;
     }
     setState(() {});
+    _persistProgress();
+    _next();
+  }
+
+  void _markProblem() {
+    for (final package in _stop.packages) {
+      package.status = DeliveryStatus.problem;
+    }
+    setState(() {});
+    _persistProgress();
     _next();
   }
 
@@ -552,6 +621,7 @@ class _RouteScreenState extends State<RouteScreen> {
 
               if (selectedIndex != null && mounted) {
                 setState(() => _index = selectedIndex);
+                _persistProgress();
               }
             },
             icon: const Icon(Icons.map_rounded),
@@ -739,7 +809,7 @@ class _RouteScreenState extends State<RouteScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _next,
+                          onPressed: _markProblem,
                           icon: const Icon(Icons.report_problem_outlined),
                           label: const Text('PROBLEMA'),
                           style: OutlinedButton.styleFrom(
