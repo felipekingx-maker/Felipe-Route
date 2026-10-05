@@ -1,7 +1,7 @@
 {
-  "version": "0.2.5",
-  "build": 7,
+  "version": "0.2.6",
+  "build": 8,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Persistencia do romaneio e progresso da rota, navegacao interna corrigida, ordem otimizada no mapa, paradas entregues apagadas com opcao de desfazer e contador com bipe, vibracao e rejeicao de duplicados.",
+  "notes": "Inclui persistencia de rota e progresso, navegacao interna, marcacao de entrega no planejamento e no mapa, exclusao de romaneio salvo, contador com bipe e vibracao, rejeicao de duplicados e correcoes no mapa.",
   "force": false
 }
