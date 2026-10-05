@@ -15,6 +15,48 @@ void main() {
 class FelipeRouteApp extends StatelessWidget {
   const FelipeRouteApp({super.key});
 
+  Future<void> _deleteCurrentRoute() async {
+    final route = _route;
+    if (route == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Excluir rota atual?'),
+        content: Text(
+          'O romaneio "${route.name}" e todo o progresso salvo serão apagados deste aparelho.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('CANCELAR'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('EXCLUIR'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await RoutePersistenceService.clear();
+
+    if (!mounted) return;
+
+    setState(() {
+      _route = null;
+      _savedCurrentIndex = 0;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Romaneio e progresso excluídos.'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -367,17 +409,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const SizedBox(height: 8),
               Card(
                 color: Colors.white,
-                child: ListTile(
-                  onTap: _planRoute,
-                  leading: const Icon(Icons.route_rounded),
-                  title: Text(
-                    route.name,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  subtitle: Text(
-                    '${route.stops.length} locais físicos • ${route.totalPackages} pacotes • ${route.stopDurationMinutes} min/parada',
-                  ),
-                  trailing: const Icon(Icons.edit_road_rounded),
+                child: Column(
+                  children: [
+                    ListTile(
+                      onTap: _planRoute,
+                      leading: const Icon(Icons.route_rounded),
+                      title: Text(
+                        route.name,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(
+                        '${route.stops.length} locais físicos • ${route.totalPackages} pacotes • ${route.stopDurationMinutes} min/parada',
+                      ),
+                      trailing: const Icon(Icons.edit_road_rounded),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      onTap: _deleteCurrentRoute,
+                      leading: const Icon(Icons.delete_outline_rounded),
+                      title: const Text(
+                        'Excluir romaneio/rota',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: const Text(
+                        'Apagar esta rota e o progresso salvo',
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
