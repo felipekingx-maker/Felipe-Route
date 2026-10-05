@@ -12,9 +12,26 @@ class ManifestParseException implements Exception {
 
 class ManifestParser {
   static const _aliases = <String, List<String>>{
-    'stop': ['parada', 'stop', 'numero parada', 'n parada', 'sequencia'],
-    'package': ['pacote', 'codigo', 'codigo pacote', 'tracking', 'awb', 'spx'],
-    'address': ['endereco', 'endereço', 'address', 'logradouro'],
+    'stop': [
+      'parada', 'stop', 'numero parada', 'n parada', 'sequencia',
+      'sequência', 'ordem', 'ordem da parada', 'stop no', 'stop number',
+      'route stop', 'número da parada', 'numero da parada'
+    ],
+    'package': [
+      'pacote', 'codigo', 'código', 'codigo pacote', 'código pacote',
+      'codigo do pacote', 'código do pacote', 'id pacote', 'id do pacote',
+      'numero do pacote', 'número do pacote', 'tracking', 'tracking number',
+      'tracking no', 'numero de rastreio', 'número de rastreio',
+      'numero de rastreamento', 'número de rastreamento', 'awb', 'spx',
+      'spx tracking', 'spx tracking no', 'shipment id', 'shipment',
+      'order id', 'pedido', 'numero do pedido', 'número do pedido', 'waybill'
+    ],
+    'address': [
+      'endereco', 'endereço', 'address', 'logradouro', 'endereco completo',
+      'endereço completo', 'endereco de entrega', 'endereço de entrega',
+      'shipping address', 'delivery address', 'recipient address',
+      'buyer address', 'endereco destinatario', 'endereço destinatário'
+    ],
     'recipient': ['destinatario', 'destinatário', 'recipient', 'cliente', 'nome'],
     'complement': ['complemento', 'complement', 'referencia', 'referência'],
     'physical': ['parada fisica', 'parada física', 'physical stop', 'grupo'],
@@ -51,19 +68,21 @@ class ManifestParser {
 
     final indexes = <String, int>{};
     for (final entry in _aliases.entries) {
-      final index = headers.indexWhere(
-        (header) => entry.value.map(_normalizeHeader).contains(header),
-      );
+      final normalizedAliases = entry.value.map(_normalizeHeader).toList();
+      final index = headers.indexWhere((header) {
+        if (normalizedAliases.contains(header)) return true;
+        if (header.length < 4) return false;
+        return normalizedAliases.any(
+          (alias) => header.contains(alias) || alias.contains(header),
+        );
+      });
       if (index >= 0) indexes[entry.key] = index;
     }
 
-    for (final required in ['stop', 'package', 'address']) {
-      if (!indexes.containsKey(required)) {
-        throw ManifestParseException(
-          'Não encontrei a coluna obrigatória "$required". '
-          'Use colunas como Parada, Pacote/Código e Endereço.',
-        );
-      }
+    if (!indexes.containsKey('address')) {
+      throw ManifestParseException(
+        'Não encontrei a coluna de endereço no romaneio.',
+      );
     }
 
     final packages = <DeliveryPackage>[];
@@ -76,17 +95,16 @@ class ManifestParser {
         return values[index].trim();
       }
 
-      final stop = read('stop');
-      final code = read('package');
       final address = read('address');
+      if (address.isEmpty) continue;
 
-      if (stop.isEmpty && code.isEmpty && address.isEmpty) continue;
-      if (stop.isEmpty || code.isEmpty || address.isEmpty) {
-        throw ManifestParseException(
-          'Linha ${lineIndex + 1} incompleta. '
-          'Parada, pacote e endereço são obrigatórios.',
-        );
-      }
+      final stopRaw = read('stop');
+      final packageRaw = read('package');
+
+      final stop = stopRaw.isEmpty ? '$lineIndex' : stopRaw;
+      final code = packageRaw.isEmpty
+          ? 'LINHA-${lineIndex.toString().padLeft(4, '0')}'
+          : packageRaw;
 
       packages.add(
         DeliveryPackage(
@@ -186,8 +204,27 @@ class ManifestParser {
   String _normalizeHeader(String value) => value
       .trim()
       .toLowerCase()
-      .replaceAll(RegExp(r'[_-]+'), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ');
+      .replaceAll('á', 'a')
+      .replaceAll('à', 'a')
+      .replaceAll('â', 'a')
+      .replaceAll('ã', 'a')
+      .replaceAll('é', 'e')
+      .replaceAll('è', 'e')
+      .replaceAll('ê', 'e')
+      .replaceAll('í', 'i')
+      .replaceAll('ì', 'i')
+      .replaceAll('î', 'i')
+      .replaceAll('ó', 'o')
+      .replaceAll('ò', 'o')
+      .replaceAll('ô', 'o')
+      .replaceAll('õ', 'o')
+      .replaceAll('ú', 'u')
+      .replaceAll('ù', 'u')
+      .replaceAll('û', 'u')
+      .replaceAll('ç', 'c')
+      .replaceAll(RegExp(r'[_\-./()]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   String _normalizeAddress(String address, String? complement) {
     final value = '$address ${complement ?? ''}'
