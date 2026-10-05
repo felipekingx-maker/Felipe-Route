@@ -168,20 +168,32 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     await controller.setSymbolTextAllowOverlap(true);
     await controller.setSymbolTextIgnorePlacement(true);
 
-    final routePoints = widget.route.stops
+    final routeStops = widget.route.stops
         .where((s) => s.latitude != null && s.longitude != null)
-        .map((s) => LatLng(s.latitude!, s.longitude!))
         .toList();
 
-    if (routePoints.length > 1) {
-      await controller.addLine(
-        LineOptions(
-          geometry: routePoints,
-          lineColor: '#1565C0',
-          lineWidth: 5,
-          lineOpacity: 0.9,
-        ),
+    if (routeStops.length > 1) {
+      final roadRoute = await NavigationService.routeThroughStops(
+        routeStops
+            .map(
+              (s) => (
+                lat: s.latitude!,
+                lng: s.longitude!,
+              ),
+            )
+            .toList(),
       );
+
+      if (roadRoute != null) {
+        await controller.addLine(
+          LineOptions(
+            geometry: roadRoute.points,
+            lineColor: '#1565C0',
+            lineWidth: 5,
+            lineOpacity: 0.9,
+          ),
+        );
+      }
     }
 
     for (var i = 0; i < widget.route.stops.length; i++) {
