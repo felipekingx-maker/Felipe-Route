@@ -307,6 +307,136 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _reuseCurrentRoute() async {
+    final route = _route;
+    if (route == null || route.stops.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reutilizar esta rota?'),
+        content: const Text(
+          'O progresso anterior será zerado e a rota será reorganizada a partir da sua localização atual.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('CANCELAR'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('REUTILIZAR'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Obtendo sua localização e reorganizando a rota...'),
+      ),
+    );
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ative o GPS para reutilizar e reorganizar a rota.'),
+          ),
+        );
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission != LocationPermission.always &&
+          permission != LocationPermission.whileInUse) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Permissão de localização necessária para reutilizar a rota.'),
+          ),
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+        ),
+      ).timeout(const Duration(seconds: 12));
+
+      final oldStatuses = <DeliveryPackage, DeliveryStatus>{};
+      for (final stop in route.stops) {
+        for (final package in stop.packages) {
+          oldStatuses[package] = package.status;
+          package.status = DeliveryStatus.pending;
+        }
+      }
+
+      final optimizedStops = await RouteTools.optimizeByRoads(
+        stops: route.stops,
+        startLatitude: position.latitude,
+        startLongitude: position.longitude,
+        finalLatitude: route.finalDestinationLatitude,
+        finalLongitude: route.finalDestinationLongitude,
+      );
+
+      if (optimizedStops == null) {
+        for (final entry in oldStatuses.entries) {
+          entry.key.status = entry.value;
+        }
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível reorganizar pelas ruas agora. A rota anterior foi mantida.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        route.stops
+          ..clear()
+          ..addAll(optimizedStops);
+        _savedCurrentIndex = 0;
+      });
+
+      await RoutePersistenceService.saveRoute(
+        route,
+        currentIndex: 0,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Rota reutilizada e reorganizada a partir da sua localização atual.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível obter o GPS ou recalcular a rota agora.',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _deleteCurrentRoute() async {
     final route = _route;
     if (route == null) return;
@@ -479,6 +609,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         '${route.stops.length} locais físicos • ${route.totalPackages} pacotes • ${route.stopDurationMinutes} min/parada',
                       ),
                       trailing: const Icon(Icons.edit_road_rounded),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      onTap: _reuseCurrentRoute,
+                      leading: const Icon(Icons.restart_alt_rounded),
+                      title: const Text(
+                        'Reutilizar rota',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: const Text(
+                        'Zerar progresso e reorganizar pelo GPS atual',
+                      ),
                     ),
                     const Divider(height: 1),
                     ListTile(
