@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class PackageCounterScreen extends StatefulWidget {
@@ -25,19 +26,60 @@ class _PackageCounterScreenState extends State<PackageCounterScreen> {
   final Set<String> _uniqueCodes = <String>{};
   String? _lastCode;
   int _duplicateReads = 0;
+  bool _lastWasDuplicate = false;
+  DateTime? _lastFeedbackAt;
+  String? _lastFeedbackCode;
 
-  void _onDetect(BarcodeCapture capture) {
+  Future<void> _onDetect(BarcodeCapture capture) async {
     for (final barcode in capture.barcodes) {
       final code = barcode.rawValue?.trim();
       if (code == null || code.isEmpty) continue;
 
+      final now = DateTime.now();
+      final repeatedTooSoon = _lastFeedbackCode == code &&
+          _lastFeedbackAt != null &&
+          now.difference(_lastFeedbackAt!) < const Duration(milliseconds: 1200);
+
+      if (repeatedTooSoon) continue;
+
+      _lastFeedbackCode = code;
+      _lastFeedbackAt = now;
+
       if (_uniqueCodes.add(code)) {
-        setState(() => _lastCode = code);
-      } else if (_lastCode != code) {
-        setState(() {
-          _lastCode = code;
-          _duplicateReads++;
-        });
+        if (mounted) {
+          setState(() {
+            _lastCode = code;
+            _lastWasDuplicate = false;
+          });
+        }
+
+        await SystemSound.play(SystemSoundType.click);
+        await HapticFeedback.mediumImpact();
+      } else {
+        if (mounted) {
+          setState(() {
+            _lastCode = code;
+            _lastWasDuplicate = true;
+            _duplicateReads++;
+          });
+        }
+
+        await SystemSound.play(SystemSoundType.alert);
+        await HapticFeedback.heavyImpact();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'JÁ FOI LIDO — código duplicado rejeitado.',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                duration: Duration(seconds: 2),
+              ),
+            );
+        }
       }
     }
   }
@@ -68,6 +110,9 @@ class _PackageCounterScreenState extends State<PackageCounterScreen> {
         _uniqueCodes.clear();
         _lastCode = null;
         _duplicateReads = 0;
+        _lastWasDuplicate = false;
+        _lastFeedbackAt = null;
+        _lastFeedbackCode = null;
       });
     }
   }
@@ -105,7 +150,9 @@ class _PackageCounterScreenState extends State<PackageCounterScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Card(
-                color: Colors.white,
+                color: _lastWasDuplicate
+                    ? const Color(0xFFFFE3E3)
+                    : Colors.white,
                 child: Padding(
                   padding: const EdgeInsets.all(18),
                   child: Row(
@@ -167,17 +214,24 @@ class _PackageCounterScreenState extends State<PackageCounterScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      const Icon(Icons.qr_code_scanner_rounded, size: 30),
+                      Icon(
+                        _lastWasDuplicate
+                            ? Icons.warning_amber_rounded
+                            : Icons.qr_code_scanner_rounded,
+                        size: 30,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Última leitura',
-                              style: TextStyle(
+                            Text(
+                              _lastWasDuplicate
+                                  ? 'JÁ FOI LIDO — REJEITADO'
+                                  : 'Última leitura',
+                              style: const TextStyle(
                                 fontSize: 12,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
                             const SizedBox(height: 3),
