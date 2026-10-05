@@ -10,11 +10,14 @@ class RoutePersistenceService {
 
   static Future<void> saveRoute(
     DeliveryRoute route, {
-    int currentIndex = 0,
+    int? currentIndex,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_routeKey, jsonEncode(_routeToJson(route)));
-    await prefs.setInt(_indexKey, currentIndex);
+
+    if (currentIndex != null) {
+      await prefs.setInt(_indexKey, currentIndex);
+    }
   }
 
   static Future<({DeliveryRoute route, int currentIndex})?> loadRoute() async {
