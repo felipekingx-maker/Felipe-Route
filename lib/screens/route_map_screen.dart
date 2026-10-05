@@ -8,15 +8,18 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/delivery_models.dart';
 import '../services/geocoding_service.dart';
+import '../services/navigation_service.dart';
 
 class RouteMapScreen extends StatefulWidget {
   final DeliveryRoute route;
   final int? currentIndex;
+  final int? navigationTargetIndex;
 
   const RouteMapScreen({
     super.key,
     required this.route,
     this.currentIndex,
+    this.navigationTargetIndex,
   });
 
   @override
@@ -35,10 +38,14 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   String? _gpsError;
   Position? _lastPosition;
   GeocodingProgress? _progress;
+  int? _navigationTargetIndex;
+  NavigationRoute? _navigationRoute;
+  bool _loadingNavigation = false;
 
   @override
   void initState() {
     super.initState();
+    _navigationTargetIndex = widget.navigationTargetIndex;
     _startGps();
   }
 
