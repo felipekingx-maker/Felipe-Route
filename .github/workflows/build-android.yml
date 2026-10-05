@@ -63,3 +63,18 @@ jobs:
           name: Felipe-Route-Beta
           path: Felipe-Route-Beta.apk
           retention-days: 30
+
+      - name: Publish rolling beta release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: beta-latest
+          name: Felipe Route Beta
+          prerelease: true
+          make_latest: false
+          files: Felipe-Route-Beta.apk
+          overwrite_files: true
+          body: |
+            Beta automático do Felipe Route.
+            Baixe o APK anexado para instalar/atualizar.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
