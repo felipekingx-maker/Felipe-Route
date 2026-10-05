@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/delivery_models.dart';
 import '../services/route_tools.dart';
+import 'route_map_screen.dart';
 
 class RoutePlannerScreen extends StatefulWidget {
   final DeliveryRoute route;
@@ -234,6 +235,17 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       appBar: AppBar(
         title: const Text('Planejar rota', style: TextStyle(fontWeight: FontWeight.w900)),
         actions: [
+          IconButton(
+            tooltip: 'Mapa',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RouteMapScreen(route: route),
+                ),
+              );
+            },
+            icon: const Icon(Icons.map_rounded),
+          ),
           IconButton(onPressed: _settings, icon: const Icon(Icons.tune_rounded), tooltip: 'Configurações'),
         ],
       ),
