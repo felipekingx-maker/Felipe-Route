@@ -31,12 +31,13 @@ class RouteTools {
       return List<PhysicalStop>.from(stops);
     }
 
-    final points = <({double lat, double lng})>[];
-    final hasStart = startLatitude != null && startLongitude != null;
-
-    if (hasStart) {
-      points.add((lat: startLatitude, lng: startLongitude));
+    if (startLatitude == null || startLongitude == null) {
+      return null;
     }
+
+    final points = <({double lat, double lng})>[
+      (lat: startLatitude, lng: startLongitude),
+    ];
 
     final stopOffset = points.length;
     points.addAll(
@@ -61,15 +62,7 @@ class RouteTools {
     };
     final optimizedIndices = <int>[];
 
-    int currentMatrixIndex;
-    if (hasStart) {
-      currentMatrixIndex = 0;
-    } else {
-      final firstStop = 0;
-      remaining.remove(firstStop);
-      optimizedIndices.add(firstStop);
-      currentMatrixIndex = stopOffset + firstStop;
-    }
+    var currentMatrixIndex = 0;
 
     while (remaining.isNotEmpty) {
       int? bestStopIndex;
