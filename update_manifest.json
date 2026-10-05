@@ -1,0 +1,7 @@
+{
+  "version": "0.2.0",
+  "build": 2,
+  "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
+  "notes": "Suporte a romaneio XLSX, rota manual, edição e reordenação de paradas, estimativa de tempo, destino final, reotimização e mapa da rota.",
+  "force": false
+}
