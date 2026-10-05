@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'models/delivery_models.dart';
 import 'screens/import_manifest_screen.dart';
@@ -7,6 +8,7 @@ import 'screens/route_planner_screen.dart';
 import 'screens/route_map_screen.dart';
 import 'services/update_service.dart';
 import 'services/route_persistence_service.dart';
+import 'services/route_tools.dart';
 
 void main() {
   runApp(const FelipeRouteApp());
@@ -188,12 +190,70 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       MaterialPageRoute(builder: (_) => const ImportManifestScreen()),
     );
 
-    if (route != null && mounted) {
-      setState(() {
-        _route = route;
-        _savedCurrentIndex = 0;
-      });
-      await _saveRoute(currentIndex: 0);
+    if (route == null || !mounted) return;
+
+    final optimized = await _optimizeImportedRouteFromGps(route);
+
+    if (!mounted) return;
+
+    setState(() {
+      _route = optimized ?? route;
+      _savedCurrentIndex = 0;
+    });
+
+    await _saveRoute(currentIndex: 0);
+
+    if (optimized == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Romaneio importado, mas não consegui definir a primeira parada pelo GPS. Ative a localização e toque em REOTIMIZAR.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<DeliveryRoute?> _optimizeImportedRouteFromGps(
+    DeliveryRoute route,
+  ) async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission != LocationPermission.always &&
+          permission != LocationPermission.whileInUse) {
+        return null;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+        ),
+      ).timeout(const Duration(seconds: 12));
+
+      final optimizedStops = await RouteTools.optimizeByRoads(
+        stops: route.stops,
+        startLatitude: position.latitude,
+        startLongitude: position.longitude,
+        finalLatitude: route.finalDestinationLatitude,
+        finalLongitude: route.finalDestinationLongitude,
+      );
+
+      if (optimizedStops == null) return null;
+
+      route.stops
+        ..clear()
+        ..addAll(optimizedStops);
+
+      return route;
+    } catch (_) {
+      return null;
     }
   }
 
