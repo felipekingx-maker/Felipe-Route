@@ -401,8 +401,20 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         }
       }
     } catch (_) {
-      // Se o GPS não estiver disponível, a otimização ainda pode partir
-      // da primeira parada pendente.
+      // A rota automática precisa partir da posição real do entregador.
+    }
+
+    if (startLat == null || startLng == null) {
+      if (!mounted) return;
+      setState(() => _optimizing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não consegui obter seu GPS. Ative a localização para definir a primeira parada mais próxima.',
+          ),
+        ),
+      );
+      return;
     }
 
     final optimized = await RouteTools.optimizeByRoads(
