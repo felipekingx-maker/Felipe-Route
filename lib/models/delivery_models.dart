@@ -1,14 +1,14 @@
 enum DeliveryStatus { pending, delivered, problem, skipped }
 
 class DeliveryPackage {
-  final String code;
-  final String stopLabel;
-  final String address;
-  final String? recipient;
-  final String? complement;
-  final String? physicalStopId;
-  final double? latitude;
-  final double? longitude;
+  String code;
+  String stopLabel;
+  String address;
+  String? recipient;
+  String? complement;
+  String? physicalStopId;
+  double? latitude;
+  double? longitude;
   DeliveryStatus status;
 
   DeliveryPackage({
@@ -25,11 +25,11 @@ class DeliveryPackage {
 }
 
 class PhysicalStop {
-  final String id;
-  final String address;
-  final String? complement;
-  final double? latitude;
-  final double? longitude;
+  String id;
+  String address;
+  String? complement;
+  double? latitude;
+  double? longitude;
   final List<DeliveryPackage> packages;
 
   PhysicalStop({
@@ -53,18 +53,25 @@ class PhysicalStop {
 
   bool get hasGroupedStops => packagesByStop.length > 1;
 
-  bool get completed => packages.every(
-        (package) => package.status == DeliveryStatus.delivered,
-      );
+  bool get completed => packages.isNotEmpty &&
+      packages.every((package) => package.status == DeliveryStatus.delivered);
 }
 
 class DeliveryRoute {
-  final String name;
+  String name;
   final List<PhysicalStop> stops;
+  int stopDurationMinutes;
+  String? finalDestinationAddress;
+  double? finalDestinationLatitude;
+  double? finalDestinationLongitude;
 
   DeliveryRoute({
     required this.name,
     required this.stops,
+    this.stopDurationMinutes = 3,
+    this.finalDestinationAddress,
+    this.finalDestinationLatitude,
+    this.finalDestinationLongitude,
   });
 
   int get totalPackages =>
@@ -76,4 +83,9 @@ class DeliveryRoute {
       .length;
 
   int get deliveredStops => stops.where((stop) => stop.completed).length;
+
+  int get remainingStops => stops.length - deliveredStops;
+
+  Duration get estimatedServiceTime =>
+      Duration(minutes: remainingStops * stopDurationMinutes);
 }
