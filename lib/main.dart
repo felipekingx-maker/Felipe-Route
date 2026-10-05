@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'models/delivery_models.dart';
 import 'screens/import_manifest_screen.dart';
 import 'screens/package_counter_screen.dart';
+import 'screens/route_planner_screen.dart';
 
 void main() {
   runApp(const FelipeRouteApp());
@@ -70,6 +71,30 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _createManualRoute() {
+    final route = DeliveryRoute(name: 'Rota manual', stops: []);
+    setState(() => _route = route);
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => RoutePlannerScreen(route: route)),
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _planRoute() {
+    final route = _route;
+    if (route == null) {
+      _createManualRoute();
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => RoutePlannerScreen(route: route)),
+    ).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final route = _route;
@@ -119,8 +144,17 @@ class _HomeScreenState extends State<HomeScreen> {
             _BigAction(
               icon: Icons.upload_file_rounded,
               title: route == null ? 'Importar manifesto' : 'Trocar manifesto',
-              subtitle: 'CSV ou TXT no beta',
+              subtitle: 'XLSX, XLS, CSV ou TXT',
               onTap: _importManifest,
+            ),
+            const SizedBox(height: 12),
+            _BigAction(
+              icon: Icons.add_location_alt_rounded,
+              title: route == null ? 'Criar rota manual' : 'Editar e planejar rota',
+              subtitle: route == null
+                  ? 'Adicionar paradas sem manifesto'
+                  : 'Adicionar, editar, reordenar e reotimizar',
+              onTap: route == null ? _createManualRoute : _planRoute,
             ),
             const SizedBox(height: 12),
             _BigAction(
@@ -142,14 +176,16 @@ class _HomeScreenState extends State<HomeScreen> {
               Card(
                 color: Colors.white,
                 child: ListTile(
+                  onTap: _planRoute,
                   leading: const Icon(Icons.route_rounded),
                   title: Text(
                     route.name,
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                   subtitle: Text(
-                    '${route.stops.length} locais físicos • ${route.totalPackages} pacotes',
+                    '${route.stops.length} locais físicos • ${route.totalPackages} pacotes • ${route.stopDurationMinutes} min/parada',
                   ),
+                  trailing: const Icon(Icons.edit_road_rounded),
                 ),
               ),
             ],
@@ -341,6 +377,25 @@ class _RouteScreenState extends State<RouteScreen> {
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Editar rota',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => RoutePlannerScreen(route: widget.route),
+                ),
+              ).then((_) {
+                if (mounted) {
+                  setState(() {
+                    if (widget.route.stops.isNotEmpty && _index >= widget.route.stops.length) {
+                      _index = widget.route.stops.length - 1;
+                    }
+                  });
+                }
+              });
+            },
+            icon: const Icon(Icons.edit_road_rounded),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 14),
             child: Center(
