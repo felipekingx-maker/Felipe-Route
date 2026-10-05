@@ -26,6 +26,20 @@ void main() {
     expect(first.hasGroupedStops, isTrue);
   });
 
+  test('ignora complemento ao formar a parada física', () {
+    const manifest = '''Parada;Pacote;Endereco;Complemento
+21;A1;Rua Luiz Izzo 779;Casa 1
+22;A2;Rua Luiz Izzo, 779;Fundos
+23;A3;Rua Luiz Izzo 779;Portão azul
+''';
+
+    final route = ManifestParser().parseText(manifest);
+
+    expect(route.stops.length, 1);
+    expect(route.stops.first.totalPackages, 3);
+    expect(route.stops.first.packagesByStop.keys, containsAll(['21', '22', '23']));
+  });
+
   test('mantém parada única quando endereço é diferente', () {
     const manifest = '''Parada,Pacote,Endereco
 1,A1,Rua Um 10
