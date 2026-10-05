@@ -16,6 +16,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -37,6 +43,8 @@ jobs:
           permissions = [
               '<uses-permission android:name="android.permission.CAMERA"/>',
               '<uses-permission android:name="android.permission.INTERNET"/>',
+              '<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>',
+              '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>',
           ]
           marker = s.find(">")
           for permission in permissions:
