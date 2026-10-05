@@ -31,11 +31,14 @@ jobs:
           from pathlib import Path
           p = Path("android/app/src/main/AndroidManifest.xml")
           s = p.read_text()
-          permission = '<uses-permission android:name="android.permission.CAMERA"/>'
-          if permission not in s:
-              s = s.replace("<manifest", "<manifest", 1)
-              marker = s.find(">")
-              s = s[:marker+1] + "\n    " + permission + s[marker+1:]
+          permissions = [
+              '<uses-permission android:name="android.permission.CAMERA"/>',
+              '<uses-permission android:name="android.permission.INTERNET"/>',
+          ]
+          marker = s.find(">")
+          for permission in permissions:
+              if permission not in s:
+                  s = s[:marker+1] + "\n    " + permission + s[marker+1:]
           s = s.replace('android:label="felipe_route"', 'android:label="Felipe Route"')
           p.write_text(s)
 
