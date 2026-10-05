@@ -46,21 +46,46 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DeliveryRoute? _route;
   bool _checkingUpdate = false;
+  DateTime? _lastAutomaticUpdateCheck;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkUpdates();
     });
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+
+    final lastCheck = _lastAutomaticUpdateCheck;
+    final shouldCheck = lastCheck == null ||
+        DateTime.now().difference(lastCheck) >= const Duration(minutes: 30);
+
+    if (shouldCheck) {
+      _checkUpdates();
+    }
+  }
+
   Future<void> _checkUpdates({bool manual = false}) async {
     if (_checkingUpdate) return;
     _checkingUpdate = true;
+
+    if (!manual) {
+      _lastAutomaticUpdateCheck = DateTime.now();
+    }
 
     final update = await UpdateService.checkForUpdate();
     _checkingUpdate = false;
