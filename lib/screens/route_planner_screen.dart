@@ -229,6 +229,138 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     );
   }
 
+  Future<void> _manualOptimize() async {
+    final completed = route.stops.where((stop) => stop.completed).toList();
+    final pending = route.stops.where((stop) => !stop.completed).toList();
+
+    if (pending.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não há paradas pendentes suficientes para reordenar.'),
+        ),
+      );
+      return;
+    }
+
+    final working = List<PhysicalStop>.from(pending);
+
+    final reordered = await showModalBottomSheet<List<PhysicalStop>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              top: false,
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.82,
+                child: Column(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Otimização manual',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Arraste as paradas para definir a ordem. A primeira da lista será a próxima entrega.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ReorderableListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: working.length,
+                        onReorder: (oldIndex, newIndex) {
+                          setSheetState(() {
+                            if (newIndex > oldIndex) newIndex--;
+                            final item = working.removeAt(oldIndex);
+                            working.insert(newIndex, item);
+                          });
+                        },
+                        itemBuilder: (context, index) {
+                          final stop = working[index];
+                          return Card(
+                            key: ValueKey(stop.id),
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                child: Text('${index + 1}'),
+                              ),
+                              title: Text(
+                                stop.address,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${stop.totalPackages} pacote${stop.totalPackages == 1 ? '' : 's'} • ${stop.packagesByStop.keys.map((e) => 'P. $e').join(', ')}',
+                              ),
+                              trailing: const Icon(Icons.drag_handle_rounded),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(sheetContext),
+                              child: const Text('CANCELAR'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () => Navigator.pop(
+                                sheetContext,
+                                List<PhysicalStop>.from(working),
+                              ),
+                              child: const Text('SALVAR ORDEM'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (reordered == null || !mounted) return;
+
+    setState(() {
+      route.stops
+        ..clear()
+        ..addAll(completed)
+        ..addAll(reordered);
+    });
+
+    await RoutePersistenceService.saveRoute(route);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Ordem manual salva. O mapa seguirá essa sequência.'),
+      ),
+    );
+  }
   Future<void> _optimize() async {
     if (_optimizing) return;
 
@@ -401,12 +533,20 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _settings,
-                          icon: const Icon(Icons.schedule_rounded),
-                          label: Text(route.stopDurationMinutes.toString() + ' min/parada'),
+                          onPressed: _manualOptimize,
+                          icon: const Icon(Icons.reorder_rounded),
+                          label: const Text('ORDEM MANUAL'),
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _settings,
+                    icon: const Icon(Icons.schedule_rounded),
+                    label: Text(
+                      '${route.stopDurationMinutes} min/parada • Configurações',
+                    ),
                   ),
                   if (route.finalDestinationAddress != null) ...[
                     const SizedBox(height: 8),
