@@ -544,8 +544,8 @@ class _RouteSummaryCard extends StatelessWidget {
                 ),
                 Expanded(
                   child: _Metric(
-                    value: '${route?.deliveredStops ?? 0}',
-                    label: 'Entregues',
+                    value: '${route?.deliveredPackages ?? 0}',
+                    label: 'Pacotes entregues',
                   ),
                 ),
               ],
