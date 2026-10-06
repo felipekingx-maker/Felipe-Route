@@ -1,5 +1,6 @@
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -30,6 +31,7 @@ class RouteMapScreen extends StatefulWidget {
 class _RouteMapScreenState extends State<RouteMapScreen> {
   MapLibreMapController? _controller;
   StreamSubscription<Position>? _positionSubscription;
+  Timer? _resumeFollowingTimer;
 
   bool _styleLoaded = false;
   bool _gpsEnabled = false;
@@ -38,6 +40,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   bool _locatingAddresses = false;
   String? _gpsError;
   Position? _lastPosition;
+  Position? _previousPosition;
   GeocodingProgress? _progress;
   int? _navigationTargetIndex;
   NavigationRoute? _navigationRoute;
@@ -54,6 +57,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   @override
   void dispose() {
+    _resumeFollowingTimer?.cancel();
     _positionSubscription?.cancel();
     super.dispose();
   }
@@ -126,6 +130,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   }
 
   Future<void> _pushPosition(Position position) async {
+    final previous = _lastPosition;
+    _previousPosition = previous;
     _lastPosition = position;
 
     final controller = _controller;
@@ -145,20 +151,27 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           MyLocationTrackingMode.trackingGps,
         );
 
-        final heading = position.heading.isFinite && position.heading >= 0
-            ? position.heading
-            : 0.0;
+        final heading = _navigationHeading(position);
+        final isNavigating = _navigationTargetIndex != null;
+        final target = isNavigating
+            ? _pointAhead(
+                position.latitude,
+                position.longitude,
+                heading,
+                32,
+              )
+            : LatLng(position.latitude, position.longitude);
 
         await controller.easeCamera(
           CameraUpdate.newCameraPosition(
             CameraPosition(
-              target: LatLng(position.latitude, position.longitude),
-              zoom: _navigationTargetIndex != null ? 17.5 : 16.5,
-              bearing: heading,
-              tilt: _is3D ? 55 : 0,
+              target: target,
+              zoom: isNavigating ? 18.0 : 16.5,
+              bearing: isNavigating ? heading : 0,
+              tilt: isNavigating ? (_is3D ? 60 : 0) : (_is3D ? 55 : 0),
             ),
           ),
-          duration: const Duration(milliseconds: 350),
+          duration: const Duration(milliseconds: 300),
         );
       }
     }
@@ -170,6 +183,86 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         _navigationRoute == null &&
         !_loadingNavigation) {
       await _startNavigation(_navigationTargetIndex!);
+    }
+  }
+
+  double _navigationHeading(Position position) {
+    final gpsHeading = position.heading;
+    if (gpsHeading.isFinite && gpsHeading >= 0 && position.speed > 1.2) {
+      return gpsHeading;
+    }
+
+    final previous = _previousPosition;
+    if (previous != null) {
+      final moved = Geolocator.distanceBetween(
+        previous.latitude,
+        previous.longitude,
+        position.latitude,
+        position.longitude,
+      );
+
+      if (moved >= 2) {
+        return Geolocator.bearingBetween(
+          previous.latitude,
+          previous.longitude,
+          position.latitude,
+          position.longitude,
+        );
+      }
+    }
+
+    return _controller?.cameraPosition?.bearing ?? 0;
+  }
+
+  LatLng _pointAhead(
+    double latitude,
+    double longitude,
+    double bearingDegrees,
+    double meters,
+  ) {
+    const earthRadius = 6378137.0;
+    final bearing = bearingDegrees * math.pi / 180;
+    final lat1 = latitude * math.pi / 180;
+    final lon1 = longitude * math.pi / 180;
+    final angularDistance = meters / earthRadius;
+
+    final lat2 = math.asin(
+      math.sin(lat1) * math.cos(angularDistance) +
+          math.cos(lat1) * math.sin(angularDistance) * math.cos(bearing),
+    );
+    final lon2 = lon1 +
+        math.atan2(
+          math.sin(bearing) * math.sin(angularDistance) * math.cos(lat1),
+          math.cos(angularDistance) - math.sin(lat1) * math.sin(lat2),
+        );
+
+    return LatLng(lat2 * 180 / math.pi, lon2 * 180 / math.pi);
+  }
+
+  Future<void> _resumeNavigationFollowing() async {
+    final controller = _controller;
+    final position = _lastPosition;
+    if (!mounted || controller == null || position == null) return;
+
+    _resumeFollowingTimer?.cancel();
+    setState(() => _following = true);
+    await controller.updateMyLocationTrackingMode(
+      MyLocationTrackingMode.trackingGps,
+    );
+    await _pushPosition(position);
+  }
+
+  void _handleTrackingDismissed() {
+    if (!mounted) return;
+
+    setState(() => _following = false);
+    _resumeFollowingTimer?.cancel();
+
+    if (_navigationTargetIndex != null) {
+      _resumeFollowingTimer = Timer(
+        const Duration(seconds: 4),
+        _resumeNavigationFollowing,
+      );
     }
   }
 
@@ -354,6 +447,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       return;
     }
 
+    _resumeFollowingTimer?.cancel();
     setState(() {
       _loadingNavigation = true;
       _navigationTargetIndex = index;
@@ -398,13 +492,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         MyLocationTrackingMode.trackingGps,
       );
       await controller.setTrackingCameraOptions(
-        tilt: _is3D ? 58 : 0,
-        duration: const Duration(milliseconds: 300),
+        tilt: _is3D ? 60 : 0,
+        duration: const Duration(milliseconds: 250),
       );
-      await controller.easeCamera(
-        CameraUpdate.zoomTo(17.5),
-        duration: const Duration(milliseconds: 300),
-      );
+      await _pushPosition(position);
     }
   }
 
@@ -861,9 +952,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             tiltGesturesEnabled: true,
             annotationConsumeTapEvents: const [],
             onMapClick: (_, coordinates) => _handleMapTap(coordinates),
-            onCameraTrackingDismissed: () {
-              if (mounted) setState(() => _following = false);
-            },
+            onCameraTrackingDismissed: _handleTrackingDismissed,
           ),
           Positioned(
             left: 12,
