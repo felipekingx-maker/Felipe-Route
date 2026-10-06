@@ -1,7 +1,7 @@
 {
-  "version": "0.2.9",
-  "build": 11,
+  "version": "0.3.0",
+  "build": 12,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Melhora a otimização para manter paradas vizinhas próximas na sequência, consolida pacotes do mesmo endereço, exibe destinatário e observações, atualiza o marcador entregue imediatamente e mostra a quilometragem total estimada da rota pelas ruas.",
+  "notes": "Novo otimizador com multiplas heuristicas e refinamento global, abertura automatica da rota para a primeira parada e melhorias recentes de agrupamento, observacoes, quilometragem e mapa.",
   "force": false
 }
