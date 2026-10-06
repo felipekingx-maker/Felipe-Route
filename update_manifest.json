@@ -1,7 +1,7 @@
 {
-  "version": "0.3.0",
-  "build": 12,
+  "version": "0.3.1",
+  "build": 13,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Novo otimizador com multiplas heuristicas e refinamento global, abertura automatica da rota para a primeira parada e melhorias recentes de agrupamento, observacoes, quilometragem e mapa.",
+  "notes": "Troca o motor principal de navegacao para Valhalla, mantendo OSRM como fallback, sem alterar a estrutura do app.",
   "force": false
 }
