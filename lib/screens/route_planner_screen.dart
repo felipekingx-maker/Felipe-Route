@@ -142,6 +142,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                     address: addr,
                     recipient: previous?.recipient,
                     complement: complement.text.trim().isEmpty ? null : complement.text.trim(),
+                    notes: previous?.notes,
                     physicalStopId: original?.id,
                     latitude: lat,
                     longitude: lng,
