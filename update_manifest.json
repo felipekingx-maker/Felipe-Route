@@ -1,7 +1,7 @@
 {
-  "version": "0.2.8",
-  "build": 10,
+  "version": "0.2.9",
+  "build": 11,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Corrige primeira parada para usar o menor tempo de carro a partir do GPS atual, faz a câmera acompanhar o veículo na navegação, melhora a ordenação manual, corrige contagem de pacotes entregues e reorganiza a rota pelo GPS ao reutilizar.",
+  "notes": "Melhora a otimização para manter paradas vizinhas próximas na sequência, consolida pacotes do mesmo endereço, exibe destinatário e observações, atualiza o marcador entregue imediatamente e mostra a quilometragem total estimada da rota pelas ruas.",
   "force": false
 }
