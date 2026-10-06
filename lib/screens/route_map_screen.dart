@@ -724,23 +724,50 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                   ),
                   const SizedBox(height: 6),
                   ...stop.packages.map(
-                    (package) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      leading: const Icon(Icons.qr_code_2_rounded),
-                      title: Text(package.code),
-                      subtitle: (package.recipient == null &&
-                              package.notes == null)
-                          ? null
-                          : Text(
-                              [
-                                if (package.recipient != null)
-                                  'Destinatário: ${package.recipient}',
-                                if (package.notes != null)
-                                  'Obs.: ${package.notes}',
-                              ].join('\n'),
+                    (package) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Icon(Icons.qr_code_2_rounded),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  package.code,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (package.recipient != null &&
+                                    package.recipient!.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Destinatário: ${package.recipient}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                                if (package.notes != null &&
+                                    package.notes!.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Obs.: ${package.notes}',
+                                  ),
+                                ],
+                              ],
                             ),
-                      trailing: Text('P. ${package.stopLabel}'),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('P. ${package.stopLabel}'),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
