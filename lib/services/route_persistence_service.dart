@@ -53,6 +53,7 @@ class RoutePersistenceService {
         'finalDestinationAddress': route.finalDestinationAddress,
         'finalDestinationLatitude': route.finalDestinationLatitude,
         'finalDestinationLongitude': route.finalDestinationLongitude,
+        'totalRouteDistanceMeters': route.totalRouteDistanceMeters,
         'stops': route.stops.map(_stopToJson).toList(),
       };
 
@@ -75,6 +76,8 @@ class RoutePersistenceService {
           (json['finalDestinationLatitude'] as num?)?.toDouble(),
       finalDestinationLongitude:
           (json['finalDestinationLongitude'] as num?)?.toDouble(),
+      totalRouteDistanceMeters:
+          (json['totalRouteDistanceMeters'] as num?)?.toDouble(),
     );
   }
 
