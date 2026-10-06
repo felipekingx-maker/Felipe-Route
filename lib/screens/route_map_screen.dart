@@ -638,9 +638,17 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                       dense: true,
                       leading: const Icon(Icons.qr_code_2_rounded),
                       title: Text(package.code),
-                      subtitle: package.recipient == null
+                      subtitle: (package.recipient == null &&
+                              package.notes == null)
                           ? null
-                          : Text(package.recipient!),
+                          : Text(
+                              [
+                                if (package.recipient != null)
+                                  'Destinatário: ${package.recipient}',
+                                if (package.notes != null)
+                                  'Obs.: ${package.notes}',
+                              ].join('\n'),
+                            ),
                       trailing: Text('P. ${package.stopLabel}'),
                     ),
                   ),
