@@ -6,6 +6,7 @@ class DeliveryPackage {
   String address;
   String? recipient;
   String? complement;
+  String? notes;
   String? physicalStopId;
   double? latitude;
   double? longitude;
@@ -17,6 +18,7 @@ class DeliveryPackage {
     required this.address,
     this.recipient,
     this.complement,
+    this.notes,
     this.physicalStopId,
     this.latitude,
     this.longitude,
