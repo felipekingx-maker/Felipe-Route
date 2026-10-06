@@ -35,6 +35,12 @@ class ManifestParser {
     ],
     'recipient': ['destinatario', 'destinatário', 'recipient', 'cliente', 'nome'],
     'complement': ['complemento', 'complement', 'referencia', 'referência'],
+    'notes': [
+      'observacao', 'observação', 'obs', 'nota', 'notas', 'note', 'notes',
+      'informacao adicional', 'informação adicional', 'informacoes adicionais',
+      'informações adicionais', 'detalhes', 'comentario', 'comentário',
+      'instrucoes', 'instruções', 'delivery instructions', 'remarks'
+    ],
     'physical': ['parada fisica', 'parada física', 'physical stop', 'grupo'],
     'lat': ['lat', 'latitude'],
     'lng': ['lng', 'lon', 'long', 'longitude'],
@@ -123,6 +129,7 @@ class ManifestParser {
           address: address,
           recipient: _nullIfEmpty(read('recipient')),
           complement: _nullIfEmpty(read('complement')),
+          notes: _nullIfEmpty(read('notes')),
           physicalStopId: _nullIfEmpty(read('physical')),
           latitude: double.tryParse(read('lat').replaceAll(',', '.')),
           longitude: double.tryParse(read('lng').replaceAll(',', '.')),
@@ -175,10 +182,24 @@ class ManifestParser {
       grouped.putIfAbsent(groupKey, () => []).add(package);
     }
 
+    // Segunda consolidação: se o endereço físico for exatamente o mesmo
+    // e não houver unidade/complemento forte diferente, junta os pacotes
+    // mesmo que o romaneio tenha trazido IDs de parada distintos.
+    final consolidated = <String, List<DeliveryPackage>>{};
+    for (final entry in grouped.entries) {
+      final groupPackages = entry.value;
+      final first = groupPackages.first;
+      final addressKey =
+          _physicalAddressFallback(first.address, first.complement);
+      consolidated
+          .putIfAbsent('addrmerge:$addressKey', () => <DeliveryPackage>[])
+          .addAll(groupPackages);
+    }
+
     final stops = <PhysicalStop>[];
     var index = 1;
 
-    for (final entry in grouped.entries) {
+    for (final entry in consolidated.entries) {
       final groupPackages = entry.value;
       final first = groupPackages.first;
       stops.add(
