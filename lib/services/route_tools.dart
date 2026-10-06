@@ -267,6 +267,39 @@ class RouteTools {
     return row[to];
   }
 
+  static Future<double?> calculateRoadDistance({
+    required List<PhysicalStop> stops,
+    required double startLatitude,
+    required double startLongitude,
+    double? finalLatitude,
+    double? finalLongitude,
+  }) async {
+    final pending = stops
+        .where(
+          (stop) =>
+              !stop.completed &&
+              stop.latitude != null &&
+              stop.longitude != null,
+        )
+        .toList();
+
+    if (pending.isEmpty) return 0;
+
+    final points = <({double lat, double lng})>[
+      (lat: startLatitude, lng: startLongitude),
+      ...pending.map(
+        (stop) => (lat: stop.latitude!, lng: stop.longitude!),
+      ),
+    ];
+
+    if (finalLatitude != null && finalLongitude != null) {
+      points.add((lat: finalLatitude, lng: finalLongitude));
+    }
+
+    final roadRoute = await NavigationService.routeThroughStops(points);
+    return roadRoute?.distanceMeters;
+  }
+
   static int potentialDuplicateCount(List<PhysicalStop> stops) {
     final seen = <String>{};
     var duplicates = 0;
