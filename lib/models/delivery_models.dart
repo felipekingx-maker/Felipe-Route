@@ -66,6 +66,7 @@ class DeliveryRoute {
   String? finalDestinationAddress;
   double? finalDestinationLatitude;
   double? finalDestinationLongitude;
+  double? totalRouteDistanceMeters;
 
   DeliveryRoute({
     required this.name,
@@ -74,6 +75,7 @@ class DeliveryRoute {
     this.finalDestinationAddress,
     this.finalDestinationLatitude,
     this.finalDestinationLongitude,
+    this.totalRouteDistanceMeters,
   });
 
   int get totalPackages =>
