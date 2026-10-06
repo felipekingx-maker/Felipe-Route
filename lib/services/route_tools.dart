@@ -203,7 +203,57 @@ class RouteTools {
       total += lastLeg;
     }
 
+    // Penaliza quando duas paradas muito próximas pelas ruas ficam
+    // artificialmente separadas por dezenas de posições. Isso ajuda a
+    // manter blocos/bairros juntos sem ignorar mão da via.
+    total += _neighborhoodSeparationPenalty(
+      order,
+      matrix,
+      stopOffset,
+    );
+
     return total;
+  }
+
+  static double _neighborhoodSeparationPenalty(
+    List<int> order,
+    List<List<double?>> matrix,
+    int stopOffset,
+  ) {
+    var penalty = 0.0;
+
+    for (var i = 0; i < order.length; i++) {
+      final from = stopOffset + order[i];
+
+      for (var j = i + 1; j < order.length; j++) {
+        final gap = j - i;
+        if (gap <= 4) continue;
+
+        final to = stopOffset + order[j];
+        final forward = _matrixValue(matrix, from, to);
+        final backward = _matrixValue(matrix, to, from);
+
+        if (forward == null && backward == null) continue;
+
+        final roadSeconds = forward == null
+            ? backward!
+            : backward == null
+                ? forward
+                : (forward + backward) / 2;
+
+        // Só considera vizinhança realmente próxima pela malha viária.
+        if (roadSeconds > 180) continue;
+
+        // Quanto mais próximas pelas ruas e mais separadas na ordem,
+        // maior a penalidade. O peso foi mantido moderado para não
+        // destruir uma rota claramente melhor por sentido/retorno.
+        final closeness = (180 - roadSeconds) / 180;
+        final excessGap = gap - 4;
+        penalty += excessGap * closeness * 22;
+      }
+    }
+
+    return penalty;
   }
 
   static double? _matrixValue(
