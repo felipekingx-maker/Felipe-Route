@@ -42,6 +42,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   int? _navigationTargetIndex;
   NavigationRoute? _navigationRoute;
   bool _loadingNavigation = false;
+  final Map<int, Circle> _stopCircles = {};
+  final Map<int, Symbol> _stopSymbols = {};
 
   @override
   void initState() {
@@ -214,7 +216,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       final isCurrent = widget.currentIndex == i;
       final isDelivered = stop.completed;
 
-      await controller.addCircle(
+      final circle = await controller.addCircle(
         CircleOptions(
           geometry: LatLng(stop.latitude!, stop.longitude!),
           circleRadius: isCurrent ? 11 : 9,
@@ -226,8 +228,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           circleStrokeWidth: 3,
         ),
       );
+      _stopCircles[i] = circle;
 
-      await controller.addSymbol(
+      final symbol = await controller.addSymbol(
         SymbolOptions(
           geometry: LatLng(stop.latitude!, stop.longitude!),
           textField: '${i + 1}',
@@ -240,6 +243,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           textHaloWidth: 1,
         ),
       );
+      _stopSymbols[i] = symbol;
     }
 
     try {
@@ -281,6 +285,42 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       await controller.easeCamera(
         CameraUpdate.tiltTo(_is3D ? 50 : 0),
         duration: const Duration(milliseconds: 300),
+      );
+    }
+  }
+
+  Future<void> _refreshStopMarker(int index) async {
+    final controller = _controller;
+    if (controller == null || !_styleLoaded) return;
+    if (index < 0 || index >= widget.route.stops.length) return;
+
+    final stop = widget.route.stops[index];
+    final delivered = stop.completed;
+    final isCurrent = widget.currentIndex == index;
+
+    final circle = _stopCircles[index];
+    if (circle != null) {
+      await controller.updateCircle(
+        circle,
+        CircleOptions(
+          circleColor: delivered
+              ? '#9E9E9E'
+              : (isCurrent ? '#F57C00' : '#1565C0'),
+          circleOpacity: delivered ? 0.55 : 1.0,
+        ),
+      );
+    }
+
+    final symbol = _stopSymbols[index];
+    if (symbol != null) {
+      await controller.updateSymbol(
+        symbol,
+        SymbolOptions(
+          textOpacity: delivered ? 0.75 : 1.0,
+          textHaloColor: delivered
+              ? '#9E9E9E'
+              : (isCurrent ? '#F57C00' : '#1565C0'),
+        ),
       );
     }
   }
@@ -612,6 +652,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                           package.status = DeliveryStatus.pending;
                         }
                         await RoutePersistenceService.saveRoute(widget.route);
+                        await _refreshStopMarker(index);
                         if (!mounted) return;
                         Navigator.pop(sheetContext);
                         setState(() {});
@@ -644,6 +685,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                           package.status = DeliveryStatus.delivered;
                         }
                         await RoutePersistenceService.saveRoute(widget.route);
+                        await _refreshStopMarker(index);
                         if (!mounted) return;
                         Navigator.pop(sheetContext);
                         setState(() {});
