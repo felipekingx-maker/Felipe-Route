@@ -911,6 +911,27 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     }
   }
 
+  String _navigationEtaText() {
+    final route = _navigationRoute;
+    if (route == null) return '-- min';
+    return '~${(route.durationSeconds / 60).round()} min';
+  }
+
+  String _navigationDistanceText() {
+    final route = _navigationRoute;
+    if (route == null) return '-- km';
+    final km = route.distanceMeters / 1000;
+    return '${km.toStringAsFixed(km < 10 ? 1 : 0)} km';
+  }
+
+  String _navigationDestinationText() {
+    final index = _navigationTargetIndex;
+    if (index == null || index < 0 || index >= widget.route.stops.length) {
+      return 'Rota de entregas';
+    }
+    return widget.route.stops[index].address;
+  }
+
   @override
   Widget build(BuildContext context) {
     final routeStops = widget.route.stops
@@ -936,16 +957,36 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Mapa da rota',
-          style: TextStyle(fontWeight: FontWeight.w900),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 1,
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _navigationTargetIndex == null
+                  ? 'Mapa da rota'
+                  : 'Parada ${_navigationTargetIndex! + 1}',
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+            if (_navigationTargetIndex != null)
+              Text(
+                _navigationDestinationText(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+          ],
         ),
         actions: [
-          IconButton(
-            tooltip: _is3D ? 'Mudar para 2D' : 'Mudar para 3D',
-            onPressed: _toggle3D,
-            icon: Icon(_is3D ? Icons.view_in_ar_rounded : Icons.map_rounded),
-          ),
           if (missingCount > 0)
             IconButton(
               tooltip: 'Localizar endereços',
@@ -985,25 +1026,53 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             left: 12,
             right: 12,
             top: 12,
-            child: Card(
-              color: Colors.white.withValues(alpha: 0.94),
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(18),
+              color: _navigationTargetIndex != null
+                  ? const Color(0xFF1A73E8)
+                  : Colors.white.withValues(alpha: 0.96),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
-                    Icon(
-                      _gpsEnabled
-                          ? Icons.gps_fixed_rounded
-                          : Icons.gps_off_rounded,
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: _navigationTargetIndex != null
+                            ? Colors.white.withValues(alpha: 0.18)
+                            : const Color(0xFFE8F0FE),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _gpsEnabled
+                            ? Icons.navigation_rounded
+                            : Icons.gps_off_rounded,
+                        color: _navigationTargetIndex != null
+                            ? Colors.white
+                            : const Color(0xFF1A73E8),
+                      ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         _gpsError ??
                             (_lastPosition == null
                                 ? 'Procurando sua localização...'
                                 : _navigationSummary()),
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          color: _navigationTargetIndex != null
+                              ? Colors.white
+                              : const Color(0xFF202124),
+                        ),
                       ),
                     ),
                   ],
@@ -1013,11 +1082,14 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           ),
           Positioned(
             right: 14,
-            bottom: 28,
+            bottom: _navigationTargetIndex != null ? 106 : 28,
             child: Column(
               children: [
                 FloatingActionButton.small(
                   heroTag: 'gps-center',
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF202124),
+                  elevation: 4,
                   onPressed: _centerOnUser,
                   tooltip: 'Minha posição',
                   child: const Icon(Icons.my_location_rounded),
@@ -1025,6 +1097,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                 const SizedBox(height: 10),
                 FloatingActionButton.small(
                   heroTag: 'map-3d',
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF202124),
+                  elevation: 4,
                   onPressed: _toggle3D,
                   tooltip: _is3D ? '2D' : '3D',
                   child: Icon(
@@ -1034,6 +1109,55 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
               ],
             ),
           ),
+          if (_navigationTargetIndex != null)
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 18,
+              child: Material(
+                elevation: 5,
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _navigationEtaText(),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF188038),
+                              ),
+                            ),
+                            Text(
+                              '${_navigationDistanceText()} • Parada ${_navigationTargetIndex! + 1}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF5F6368),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: _centerOnUser,
+                        icon: const Icon(Icons.navigation_rounded),
+                        label: const Text('CENTRALIZAR'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           if (_locatingAddresses)
             Positioned(
               left: 12,
