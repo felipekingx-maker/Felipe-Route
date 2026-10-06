@@ -203,11 +203,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     await _saveRoute(currentIndex: 0);
 
-    if (optimized == null && mounted) {
+    if (!mounted) return;
+
+    if (optimized == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Romaneio importado, mas não consegui definir a primeira parada pelo GPS. Ative a localização e toque em REOTIMIZAR.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (route.stops.isNotEmpty) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RouteMapScreen(
+            route: route,
+            currentIndex: 0,
+            navigationTargetIndex: 0,
           ),
         ),
       );
@@ -296,7 +311,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       MaterialPageRoute(builder: (_) => RoutePlannerScreen(route: route)),
     ).then((_) async {
       await _saveRoute();
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
+
+      if (route.stops.isNotEmpty) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RouteMapScreen(
+              route: route,
+              currentIndex: 0,
+              navigationTargetIndex: 0,
+            ),
+          ),
+        );
+      }
     });
   }
 
