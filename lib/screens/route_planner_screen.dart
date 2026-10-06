@@ -230,6 +230,43 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     );
   }
 
+  Future<void> _refreshRouteDistance() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      final permission = await Geolocator.checkPermission();
+      if (permission != LocationPermission.always &&
+          permission != LocationPermission.whileInUse) {
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+        ),
+      ).timeout(const Duration(seconds: 10));
+
+      final meters = await RouteTools.calculateRoadDistance(
+        stops: route.stops,
+        startLatitude: position.latitude,
+        startLongitude: position.longitude,
+        finalLatitude: route.finalDestinationLatitude,
+        finalLongitude: route.finalDestinationLongitude,
+      );
+
+      if (meters == null || !mounted) return;
+      setState(() => route.totalRouteDistanceMeters = meters);
+    } catch (_) {}
+  }
+
+  String _distanceText() {
+    final meters = route.totalRouteDistanceMeters;
+    if (meters == null) return '-- km';
+    final km = meters / 1000;
+    return '${km.toStringAsFixed(km < 10 ? 1 : 0)} km';
+  }
+
   Future<void> _manualOptimize() async {
     final completed = route.stops.where((stop) => stop.completed).toList();
     final pending = route.stops.where((stop) => !stop.completed).toList();
@@ -396,6 +433,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         ..addAll(reordered);
     });
 
+    await _refreshRouteDistance();
     await RoutePersistenceService.saveRoute(route);
 
     if (!mounted) return;
@@ -490,6 +528,18 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         ..addAll(optimized);
     });
 
+    final meters = await RouteTools.calculateRoadDistance(
+      stops: route.stops,
+      startLatitude: startLat,
+      startLongitude: startLng,
+      finalLatitude: route.finalDestinationLatitude,
+      finalLongitude: route.finalDestinationLongitude,
+    );
+
+    if (meters != null && mounted) {
+      setState(() => route.totalRouteDistanceMeters = meters);
+    }
+
     await RoutePersistenceService.saveRoute(route);
 
     if (!mounted) return;
@@ -550,6 +600,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                         children: [
                           Expanded(child: _Metric(value: route.stops.length.toString(), label: 'Paradas')),
                           Expanded(child: _Metric(value: route.totalPackages.toString(), label: 'Pacotes')),
+                          Expanded(child: _Metric(value: _distanceText(), label: 'Rota')),
                           Expanded(child: _Metric(value: _timeText(), label: 'Tempo parado')),
                         ],
                       ),
