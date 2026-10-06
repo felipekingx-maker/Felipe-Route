@@ -6,6 +6,8 @@ permissions:
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'update_manifest.json'
   workflow_dispatch:
 
 jobs:
