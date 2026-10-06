@@ -251,6 +251,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ..clear()
         ..addAll(optimizedStops);
 
+      route.totalRouteDistanceMeters = await RouteTools.calculateRoadDistance(
+        stops: route.stops,
+        startLatitude: position.latitude,
+        startLongitude: position.longitude,
+        finalLatitude: route.finalDestinationLatitude,
+        finalLongitude: route.finalDestinationLongitude,
+      );
+
       return route;
     } catch (_) {
       return null;
@@ -405,10 +413,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return;
       }
 
+      final meters = await RouteTools.calculateRoadDistance(
+        stops: optimizedStops,
+        startLatitude: position.latitude,
+        startLongitude: position.longitude,
+        finalLatitude: route.finalDestinationLatitude,
+        finalLongitude: route.finalDestinationLongitude,
+      );
+
       setState(() {
         route.stops
           ..clear()
           ..addAll(optimizedStops);
+        route.totalRouteDistanceMeters = meters;
         _savedCurrentIndex = 0;
       });
 
@@ -606,7 +623,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       subtitle: Text(
-                        '${route.stops.length} locais físicos • ${route.totalPackages} pacotes • ${route.stopDurationMinutes} min/parada',
+                        '${route.stops.length} locais físicos • '
+                        '${route.totalPackages} pacotes • '
+                        '${route.totalRouteDistanceMeters == null ? '-- km' : '${(route.totalRouteDistanceMeters! / 1000).toStringAsFixed((route.totalRouteDistanceMeters! / 1000) < 10 ? 1 : 0)} km'} • '
+                        '${route.stopDurationMinutes} min/parada',
                       ),
                       trailing: const Icon(Icons.edit_road_rounded),
                     ),
