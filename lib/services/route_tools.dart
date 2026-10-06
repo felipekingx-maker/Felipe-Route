@@ -8,8 +8,6 @@ class RouteTools {
         pending.where((s) => s.latitude != null && s.longitude != null).length >= 2;
   }
 
-  /// Otimiza usando tempo real de condução pela malha viária.
-  /// A matriz respeita vias dirigíveis, sentidos e mão da via.
   static Future<List<PhysicalStop>?> optimizeByRoads({
     required List<PhysicalStop> stops,
     double? startLatitude,
@@ -37,14 +35,10 @@ class RouteTools {
 
     final points = <({double lat, double lng})>[
       (lat: startLatitude, lng: startLongitude),
-    ];
-
-    final stopOffset = points.length;
-    points.addAll(
-      withCoordinates.map(
+      ...withCoordinates.map(
         (stop) => (lat: stop.latitude!, lng: stop.longitude!),
       ),
-    );
+    ];
 
     int? finalDestinationIndex;
     if (finalLatitude != null && finalLongitude != null) {
@@ -57,78 +51,242 @@ class RouteTools {
       return null;
     }
 
-    final remaining = <int>{
-      for (var i = 0; i < withCoordinates.length; i++) i,
-    };
-    final optimizedIndices = <int>[];
+    const stopOffset = 1;
+    final count = withCoordinates.length;
 
-    var currentMatrixIndex = 0;
+    final firstStop = _nearestFromGps(matrix, stopOffset, count);
+    if (firstStop == null) return null;
+
+    final candidateOrders = <List<int>>[];
+
+    candidateOrders.add(
+      _greedyOrder(
+        firstStop: firstStop,
+        matrix: matrix,
+        stopOffset: stopOffset,
+        count: count,
+      ),
+    );
+
+    candidateOrders.add(
+      _cheapestInsertionOrder(
+        firstStop: firstStop,
+        matrix: matrix,
+        stopOffset: stopOffset,
+        count: count,
+        finalDestinationIndex: finalDestinationIndex,
+      ),
+    );
+
+    final secondCandidates = <({int stop, double duration})>[];
+    for (var i = 0; i < count; i++) {
+      if (i == firstStop) continue;
+      final duration =
+          _matrixValue(matrix, stopOffset + firstStop, stopOffset + i);
+      if (duration != null) {
+        secondCandidates.add((stop: i, duration: duration));
+      }
+    }
+    secondCandidates.sort((a, b) => a.duration.compareTo(b.duration));
+
+    for (final option in secondCandidates.take(4)) {
+      candidateOrders.add(
+        _greedyOrder(
+          firstStop: firstStop,
+          forcedSecondStop: option.stop,
+          matrix: matrix,
+          stopOffset: stopOffset,
+          count: count,
+        ),
+      );
+    }
+
+    List<int>? bestOrder;
+    var bestCost = double.infinity;
+
+    for (final seed in candidateOrders) {
+      if (seed.length != count) continue;
+
+      final refined = _refineOrder(
+        seed,
+        matrix,
+        stopOffset,
+        finalDestinationIndex,
+      );
+
+      final cost = _routeCost(
+        refined,
+        matrix,
+        stopOffset,
+        finalDestinationIndex,
+      );
+
+      if (cost < bestCost) {
+        bestCost = cost;
+        bestOrder = refined;
+      }
+    }
+
+    if (bestOrder == null) return null;
+
+    final optimized =
+        bestOrder.map((index) => withCoordinates[index]).toList();
+
+    return [...completed, ...optimized, ...withoutCoordinates];
+  }
+
+  static int? _nearestFromGps(
+    List<List<double?>> matrix,
+    int stopOffset,
+    int count,
+  ) {
+    int? best;
+    double? bestDuration;
+
+    for (var i = 0; i < count; i++) {
+      final duration = _matrixValue(matrix, 0, stopOffset + i);
+      if (duration == null) continue;
+
+      if (bestDuration == null || duration < bestDuration) {
+        bestDuration = duration;
+        best = i;
+      }
+    }
+
+    return best;
+  }
+
+  static List<int> _greedyOrder({
+    required int firstStop,
+    int? forcedSecondStop,
+    required List<List<double?>> matrix,
+    required int stopOffset,
+    required int count,
+  }) {
+    final remaining = <int>{
+      for (var i = 0; i < count; i++) i,
+    };
+
+    final order = <int>[firstStop];
+    remaining.remove(firstStop);
+
+    var current = firstStop;
+
+    if (forcedSecondStop != null &&
+        forcedSecondStop != firstStop &&
+        remaining.remove(forcedSecondStop)) {
+      order.add(forcedSecondStop);
+      current = forcedSecondStop;
+    }
 
     while (remaining.isNotEmpty) {
-      int? bestStopIndex;
-      double? bestScore;
+      int? best;
+      double? bestDuration;
 
-      for (final candidateStopIndex in remaining) {
-        final candidateMatrixIndex = stopOffset + candidateStopIndex;
-        final duration =
-            _matrixValue(matrix, currentMatrixIndex, candidateMatrixIndex);
+      for (final candidate in remaining) {
+        final duration = _matrixValue(
+          matrix,
+          stopOffset + current,
+          stopOffset + candidate,
+        );
         if (duration == null) continue;
 
-        var score = duration;
-
-        // A primeira parada deve ser SEMPRE a mais rápida de alcançar
-        // a partir do GPS atual. A preferência pelo destino final só entra
-        // depois que a primeira parada já foi escolhida.
-        if (optimizedIndices.isNotEmpty && finalDestinationIndex != null) {
-          final towardFinal = _matrixValue(
-            matrix,
-            candidateMatrixIndex,
-            finalDestinationIndex,
-          );
-          if (towardFinal != null) {
-            score += towardFinal * 0.15;
-          }
-        }
-
-        if (bestScore == null || score < bestScore) {
-          bestScore = score;
-          bestStopIndex = candidateStopIndex;
+        if (bestDuration == null || duration < bestDuration) {
+          bestDuration = duration;
+          best = candidate;
         }
       }
 
-      if (bestStopIndex == null) {
-        optimizedIndices.addAll(remaining);
+      if (best == null) {
+        order.addAll(remaining);
         break;
       }
 
-      optimizedIndices.add(bestStopIndex);
-      remaining.remove(bestStopIndex);
-      currentMatrixIndex = stopOffset + bestStopIndex;
+      order.add(best);
+      remaining.remove(best);
+      current = best;
     }
 
-    // Refina a sequência inteira para evitar retornos desnecessários
-    // causados pela heurística gulosa (ex.: passar perto de uma parada e
-    // voltar para ela muito depois). A primeira parada permanece fixa.
-    var improved = true;
-    var passes = 0;
-    var bestOrder = List<int>.from(optimizedIndices);
+    return order;
+  }
+
+  static List<int> _cheapestInsertionOrder({
+    required int firstStop,
+    required List<List<double?>> matrix,
+    required int stopOffset,
+    required int count,
+    required int? finalDestinationIndex,
+  }) {
+    final remaining = <int>{
+      for (var i = 0; i < count; i++) i,
+    }..remove(firstStop);
+
+    final order = <int>[firstStop];
+
+    while (remaining.isNotEmpty) {
+      int? bestStop;
+      int? bestPosition;
+      var bestCost = double.infinity;
+
+      for (final stop in remaining) {
+        for (var position = 1; position <= order.length; position++) {
+          final candidate = List<int>.from(order)..insert(position, stop);
+          final cost = _routeCost(
+            candidate,
+            matrix,
+            stopOffset,
+            finalDestinationIndex,
+          );
+
+          if (cost < bestCost) {
+            bestCost = cost;
+            bestStop = stop;
+            bestPosition = position;
+          }
+        }
+      }
+
+      if (bestStop == null || bestPosition == null) {
+        order.addAll(remaining);
+        break;
+      }
+
+      order.insert(bestPosition, bestStop);
+      remaining.remove(bestStop);
+    }
+
+    return order;
+  }
+
+  static List<int> _refineOrder(
+    List<int> seed,
+    List<List<double?>> matrix,
+    int stopOffset,
+    int? finalDestinationIndex,
+  ) {
+    var best = List<int>.from(seed);
     var bestCost = _routeCost(
-      bestOrder,
+      best,
       matrix,
       stopOffset,
       finalDestinationIndex,
     );
 
-    while (improved && passes < 6) {
+    var improved = true;
+    var passes = 0;
+
+    while (improved && passes < 8) {
       improved = false;
       passes++;
 
-      // Tenta realocar cada parada (exceto a primeira) para outra posição.
-      for (var from = 1; from < bestOrder.length; from++) {
-        for (var to = 1; to < bestOrder.length; to++) {
+      List<int>? passBest;
+      var passBestCost = bestCost;
+
+      for (var from = 1; from < best.length; from++) {
+        for (var to = 1; to < best.length; to++) {
           if (from == to) continue;
 
-          final candidate = List<int>.from(bestOrder);
+          final candidate = List<int>.from(best);
           final item = candidate.removeAt(from);
           candidate.insert(to, item);
 
@@ -139,21 +297,19 @@ class RouteTools {
             finalDestinationIndex,
           );
 
-          if (cost + 0.5 < bestCost) {
-            bestOrder = candidate;
-            bestCost = cost;
-            improved = true;
+          if (cost + 0.5 < passBestCost) {
+            passBest = candidate;
+            passBestCost = cost;
           }
         }
       }
 
-      // Também testa inverter pequenos/longos trechos, sempre preservando
-      // a primeira parada escolhida pelo GPS.
-      for (var i = 1; i < bestOrder.length - 1; i++) {
-        for (var j = i + 1; j < bestOrder.length; j++) {
-          final candidate = List<int>.from(bestOrder);
-          final reversed = candidate.sublist(i, j + 1).reversed.toList();
-          candidate.replaceRange(i, j + 1, reversed);
+      for (var i = 1; i < best.length - 1; i++) {
+        for (var j = i + 1; j < best.length; j++) {
+          final candidate = List<int>.from(best);
+          final temp = candidate[i];
+          candidate[i] = candidate[j];
+          candidate[j] = temp;
 
           final cost = _routeCost(
             candidate,
@@ -162,19 +318,44 @@ class RouteTools {
             finalDestinationIndex,
           );
 
-          if (cost + 0.5 < bestCost) {
-            bestOrder = candidate;
-            bestCost = cost;
-            improved = true;
+          if (cost + 0.5 < passBestCost) {
+            passBest = candidate;
+            passBestCost = cost;
           }
         }
       }
+
+      for (var i = 1; i < best.length - 1; i++) {
+        for (var j = i + 1; j < best.length; j++) {
+          final candidate = List<int>.from(best);
+          candidate.replaceRange(
+            i,
+            j + 1,
+            candidate.sublist(i, j + 1).reversed,
+          );
+
+          final cost = _routeCost(
+            candidate,
+            matrix,
+            stopOffset,
+            finalDestinationIndex,
+          );
+
+          if (cost + 0.5 < passBestCost) {
+            passBest = candidate;
+            passBestCost = cost;
+          }
+        }
+      }
+
+      if (passBest != null) {
+        best = passBest;
+        bestCost = passBestCost;
+        improved = true;
+      }
     }
 
-    final optimized =
-        bestOrder.map((index) => withCoordinates[index]).toList();
-
-    return [...completed, ...optimized, ...withoutCoordinates];
+    return best;
   }
 
   static double _routeCost(
