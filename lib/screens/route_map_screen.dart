@@ -158,7 +158,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                 position.latitude,
                 position.longitude,
                 heading,
-                32,
+                55,
               )
             : LatLng(position.latitude, position.longitude);
 
@@ -166,7 +166,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           CameraUpdate.newCameraPosition(
             CameraPosition(
               target: target,
-              zoom: isNavigating ? 18.0 : 16.5,
+              zoom: isNavigating ? 18.2 : 16.5,
               bearing: isNavigating ? heading : 0,
               tilt: isNavigating ? (_is3D ? 60 : 0) : (_is3D ? 55 : 0),
             ),
@@ -1028,20 +1028,20 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             top: 12,
             child: Material(
               elevation: 4,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
               color: _navigationTargetIndex != null
                   ? const Color(0xFF1A73E8)
                   : Colors.white.withValues(alpha: 0.96),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 9,
                 ),
                 child: Row(
                   children: [
                     Container(
-                      width: 42,
-                      height: 42,
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
                         color: _navigationTargetIndex != null
                             ? Colors.white.withValues(alpha: 0.18)
@@ -1068,7 +1068,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 16,
+                          fontSize: 15,
                           color: _navigationTargetIndex != null
                               ? Colors.white
                               : const Color(0xFF202124),
