@@ -16,7 +16,7 @@ Future<void> main() async {
 
   await Supabase.initialize(
     url: 'https://rtrbnigotnwidbiywatx.supabase.co',
-    anonKey: 'sb_publishable_iYfs-UIfTui2FTv_Gg1jFA_zp8naS6z',
+    publishableKey: 'sb_publishable_iYfs-UIfTui2FTv_Gg1jFA_zp8naS6z',
   );
 
   runApp(const FelipeRouteApp());
@@ -69,8 +69,6 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    final session = Supabase.instance.client.auth.currentSession;
-
     return StreamBuilder<AuthState>(
       stream: _authStream,
       builder: (context, snapshot) {
