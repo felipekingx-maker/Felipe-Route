@@ -1,7 +1,7 @@
 {
-  "version": "0.3.1",
-  "build": 13,
+  "version": "0.3.2",
+  "build": 14,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Troca o motor principal de navegacao para Valhalla, mantendo OSRM como fallback, sem alterar a estrutura do app.",
+  "notes": "Novo visual de navegacao inspirado em apps de mapas, com destino em destaque, ETA e distancia na faixa inferior, controles flutuantes mais limpos e melhorias recentes no acompanhamento do veiculo.",
   "force": false
 }
