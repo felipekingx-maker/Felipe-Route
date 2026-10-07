@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/delivery_models.dart';
 import 'screens/import_manifest_screen.dart';
@@ -10,7 +11,14 @@ import 'services/update_service.dart';
 import 'services/route_persistence_service.dart';
 import 'services/route_tools.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: 'https://rtrbnigotnwidbiywatx.supabase.co',
+    anonKey: 'sb_publishable_iYfs-UIfTui2FTv_Gg1jFA_zp8naS6z',
+  );
+
   runApp(const FelipeRouteApp());
 }
 
@@ -37,7 +45,392 @@ class FelipeRouteApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const HomeScreen(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late final Stream<AuthState> _authStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStream = Supabase.instance.client.auth.onAuthStateChange;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = Supabase.instance.client.auth.currentSession;
+
+    return StreamBuilder<AuthState>(
+      stream: _authStream,
+      builder: (context, snapshot) {
+        final currentSession =
+            snapshot.data?.session ?? Supabase.instance.client.auth.currentSession;
+
+        if (currentSession == null) {
+          return const LoginScreen();
+        }
+
+        return AccessGate(userId: currentSession.user.id);
+      },
+    );
+  }
+}
+
+class AccessGate extends StatefulWidget {
+  final String userId;
+
+  const AccessGate({super.key, required this.userId});
+
+  @override
+  State<AccessGate> createState() => _AccessGateState();
+}
+
+class _AccessGateState extends State<AccessGate> {
+  bool _loading = true;
+  String? _error;
+  bool _allowed = false;
+  String? _email;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAccess();
+  }
+
+  Future<void> _checkAccess() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final client = Supabase.instance.client;
+      final response = await client
+          .from('profiles')
+          .select('email,status,trial_end,plan,is_admin')
+          .eq('id', widget.userId)
+          .maybeSingle();
+
+      if (!mounted) return;
+
+      if (response == null) {
+        setState(() {
+          _loading = false;
+          _allowed = false;
+          _error = 'Perfil não encontrado. Fale com o administrador.';
+        });
+        return;
+      }
+
+      final status = response['status']?.toString() ?? 'blocked';
+      final trialEndRaw = response['trial_end']?.toString();
+      final isAdmin = response['is_admin'] == true;
+      final trialEnd =
+          trialEndRaw == null ? null : DateTime.tryParse(trialEndRaw)?.toLocal();
+
+      final trialExpired =
+          !isAdmin && trialEnd != null && DateTime.now().isAfter(trialEnd);
+
+      setState(() {
+        _loading = false;
+        _email = response['email']?.toString();
+        _allowed = status == 'active' && !trialExpired;
+
+        if (status != 'active') {
+          _error = 'Seu acesso está bloqueado. Fale com o administrador.';
+        } else if (trialExpired) {
+          _error = 'Seu período de teste terminou. Fale com o administrador.';
+        } else {
+          _error = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _allowed = false;
+        _error = 'Não foi possível verificar seu acesso agora.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_allowed) {
+      return const HomeScreen();
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('SPX Router')),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline_rounded, size: 64),
+                const SizedBox(height: 16),
+                Text(
+                  _error ?? 'Acesso indisponível.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (_email != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _email!,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: _checkAccess,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('TENTAR NOVAMENTE'),
+                ),
+                TextButton(
+                  onPressed: () => Supabase.instance.client.auth.signOut(),
+                  child: const Text('SAIR'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  bool _loading = false;
+  bool _createAccount = false;
+  bool _obscurePassword = true;
+  String? _message;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.length < 6) {
+      setState(() {
+        _message = 'Informe um email válido e uma senha com pelo menos 6 caracteres.';
+      });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _message = null;
+    });
+
+    try {
+      final auth = Supabase.instance.client.auth;
+
+      if (_createAccount) {
+        final response = await auth.signUp(
+          email: email,
+          password: password,
+        );
+
+        if (!mounted) return;
+
+        if (response.session == null) {
+          setState(() {
+            _loading = false;
+            _message =
+                'Conta criada. Verifique seu email para confirmar o cadastro.';
+          });
+        } else {
+          setState(() => _loading = false);
+        }
+      } else {
+        await auth.signInWithPassword(
+          email: email,
+          password: password,
+        );
+
+        if (mounted) {
+          setState(() => _loading = false);
+        }
+      }
+    } on AuthException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _message = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _message = 'Não foi possível conectar ao servidor.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Card(
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Icon(
+                        Icons.route_rounded,
+                        size: 58,
+                        color: Color(0xFF1F6FEB),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'SPX Router',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _createAccount
+                            ? 'Criar acesso ao beta'
+                            : 'Entre para continuar',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 22),
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        autocorrect: false,
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        onSubmitted: (_) => _loading ? null : _submit(),
+                        decoration: InputDecoration(
+                          labelText: 'Senha',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_rounded
+                                  : Icons.visibility_off_rounded,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_message != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _message!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: _loading ? null : _submit,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        child: _loading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                _createAccount
+                                    ? 'CRIAR CONTA'
+                                    : 'ENTRAR',
+                              ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () {
+                                setState(() {
+                                  _createAccount = !_createAccount;
+                                  _message = null;
+                                });
+                              },
+                        child: Text(
+                          _createAccount
+                              ? 'Já tenho uma conta'
+                              : 'Criar uma conta',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
