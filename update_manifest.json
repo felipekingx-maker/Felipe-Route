@@ -1,7 +1,7 @@
 {
-  "version": "0.3.3",
-  "build": 15,
+  "version": "0.3.4",
+  "build": 16,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Navegacao mais suave com camera acompanhando o carro continuamente, tela mantida ligada durante a navegacao, retorno ao carro apenas ao tocar em Centralizar e melhorias no agrupamento de enderecos e complementos.",
+  "notes": "Corrige o acompanhamento da navegacao: veiculo fixo na tela e mapa se movendo continuamente por baixo, sem conflito com o tracking automatico. Mantem tela ligada e centralizacao manual.",
   "force": false
 }
