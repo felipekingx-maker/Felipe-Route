@@ -11,6 +11,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/delivery_models.dart';
 import '../services/geocoding_service.dart';
 import '../services/navigation_service.dart';
+import '../services/navigation_position_engine.dart';
 import '../services/route_persistence_service.dart';
 
 class RouteMapScreen extends StatefulWidget {
@@ -49,6 +50,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   NavigationRoute? _navigationRoute;
   bool _loadingNavigation = false;
   bool _cameraFrameBusy = false;
+  final NavigationPositionEngine _positionEngine = NavigationPositionEngine();
   final Map<int, Circle> _stopCircles = {};
   final Map<int, Symbol> _stopSymbols = {};
 
@@ -145,6 +147,16 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     _lastPosition = position;
     _lastGpsUpdateAt = DateTime.now();
 
+    _positionEngine.update(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracy: position.accuracy,
+      speed: position.speed,
+      heading: _navigationHeading(position),
+      timestamp: DateTime.now(),
+      route: _navigationRoute?.points ?? const <LatLng>[],
+    );
+
     final controller = _controller;
     if (controller != null && _styleLoaded) {
       if (_navigationTargetIndex == null) {
@@ -202,62 +214,34 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         !_following ||
         _navigationTargetIndex == null ||
         !_styleLoaded ||
-        _controller == null ||
-        _lastPosition == null) {
+        _controller == null) {
       return;
     }
 
+    final visual = _positionEngine.predict(DateTime.now());
+    if (visual == null) return;
+
     _cameraFrameBusy = true;
     try {
-      final position = _lastPosition!;
-      final heading = _navigationHeading(position);
-      final speed = position.speed.isFinite && position.speed > 0
-          ? position.speed
-          : 0.0;
-
-      final updatedAt = _lastGpsUpdateAt ?? DateTime.now();
-      final ageSeconds = DateTime.now()
-              .difference(updatedAt)
-              .inMilliseconds
-              .clamp(0, 1200) /
-          1000.0;
-
-      final predictedMeters = speed * ageSeconds;
-      final predicted = predictedMeters > 0.15
-          ? _pointAhead(
-              position.latitude,
-              position.longitude,
-              heading,
-              predictedMeters,
-            )
-          : LatLng(position.latitude, position.longitude);
-
-      // O alvo fica adiantado em relação ao carro. Como o mapa gira
-      // junto com o heading, o carro permanece visualmente na parte
-      // inferior da tela enquanto o mapa se desloca por baixo.
       final cameraTarget = _pointAhead(
-        predicted.latitude,
-        predicted.longitude,
-        heading,
+        visual.point.latitude,
+        visual.point.longitude,
+        visual.heading,
         55,
       );
 
       final controller = _controller!;
 
-      // Durante a navegação a câmera é 100% manual. Não usamos
-      // trackingGps, pois ele disputa o controle da câmera.
       await controller.updateMyLocationTrackingMode(
         MyLocationTrackingMode.none,
       );
 
-      // Atualização direta em pequenos passos (~30 fps), evitando
-      // acumular animações easeCamera entre uma leitura de GPS e outra.
       await controller.moveCamera(
         CameraUpdate.newCameraPosition(
           CameraPosition(
             target: cameraTarget,
             zoom: 18.2,
-            bearing: heading,
+            bearing: visual.heading,
             tilt: _is3D ? 60 : 0,
           ),
         ),
@@ -516,6 +500,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     }
 
     _resumeFollowingTimer?.cancel();
+    _positionEngine.reset();
     await WakelockPlus.enable();
     setState(() {
       _loadingNavigation = true;
@@ -536,6 +521,18 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       _loadingNavigation = false;
       _navigationRoute = route;
     });
+
+    if (route != null) {
+      _positionEngine.update(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+        speed: position.speed,
+        heading: _navigationHeading(position),
+        timestamp: DateTime.now(),
+        route: route.points,
+      );
+    }
 
     if (route == null) {
       ScaffoldMessenger.of(context).showSnackBar(
