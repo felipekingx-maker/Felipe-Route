@@ -208,7 +208,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     final ageSeconds = DateTime.now()
         .difference(updatedAt)
         .inMilliseconds
-        .clamp(0, 900) /
+        .clamp(0, 1200) /
         1000.0;
 
     // Entre duas leituras reais do GPS, avança visualmente o veículo
