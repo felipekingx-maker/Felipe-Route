@@ -152,11 +152,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       );
 
       if (_following) {
-        await controller.updateMyLocationTrackingMode(
-          MyLocationTrackingMode.trackingGps,
-        );
-
         if (_navigationTargetIndex == null) {
+          await controller.updateMyLocationTrackingMode(
+            MyLocationTrackingMode.trackingGps,
+          );
           await controller.easeCamera(
             CameraUpdate.newCameraPosition(
               CameraPosition(
@@ -185,7 +184,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   void _startSmoothNavigationLoop() {
     _smoothNavigationTimer?.cancel();
     _smoothNavigationTimer = Timer.periodic(
-      const Duration(milliseconds: 100),
+      const Duration(milliseconds: 33),
       (_) => _updateSmoothNavigationCamera(),
     );
   }
@@ -253,7 +252,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           tilt: _is3D ? 60 : 0,
         ),
       ),
-      duration: const Duration(milliseconds: 120),
+      duration: const Duration(milliseconds: 45),
     );
   }
 
@@ -318,7 +317,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     _resumeFollowingTimer?.cancel();
     setState(() => _following = true);
     await controller.updateMyLocationTrackingMode(
-      MyLocationTrackingMode.trackingGps,
+      _navigationTargetIndex != null
+          ? MyLocationTrackingMode.none
+          : MyLocationTrackingMode.trackingGps,
     );
     await _pushPosition(position);
   }
@@ -560,11 +561,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       );
 
       await controller.updateMyLocationTrackingMode(
-        MyLocationTrackingMode.trackingGps,
-      );
-      await controller.setTrackingCameraOptions(
-        tilt: _is3D ? 60 : 0,
-        duration: const Duration(milliseconds: 250),
+        MyLocationTrackingMode.none,
       );
       await _pushPosition(position);
     }
@@ -602,19 +599,24 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
     setState(() => _following = true);
 
-    await controller.updateMyLocationTrackingMode(
-      MyLocationTrackingMode.trackingGps,
-    );
-
-    await controller.setTrackingCameraOptions(
-      tilt: _is3D ? 55 : 0,
-      duration: const Duration(milliseconds: 250),
-    );
-
-    await controller.easeCamera(
-      CameraUpdate.zoomTo(17),
-      duration: const Duration(milliseconds: 300),
-    );
+    if (_navigationTargetIndex != null) {
+      await controller.updateMyLocationTrackingMode(
+        MyLocationTrackingMode.none,
+      );
+      await _updateSmoothNavigationCamera();
+    } else {
+      await controller.updateMyLocationTrackingMode(
+        MyLocationTrackingMode.trackingGps,
+      );
+      await controller.setTrackingCameraOptions(
+        tilt: _is3D ? 55 : 0,
+        duration: const Duration(milliseconds: 250),
+      );
+      await controller.easeCamera(
+        CameraUpdate.zoomTo(17),
+        duration: const Duration(milliseconds: 300),
+      );
+    }
   }
 
   Future<void> _toggle3D() async {
