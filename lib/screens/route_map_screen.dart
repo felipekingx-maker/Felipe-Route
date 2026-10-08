@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/delivery_models.dart';
 import '../services/geocoding_service.dart';
@@ -54,6 +55,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   void initState() {
     super.initState();
     _navigationTargetIndex = widget.navigationTargetIndex;
+    if (_navigationTargetIndex != null) {
+      WakelockPlus.enable();
+    }
     _startGps();
     _startSmoothNavigationLoop();
   }
@@ -63,6 +67,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     _resumeFollowingTimer?.cancel();
     _smoothNavigationTimer?.cancel();
     _positionSubscription?.cancel();
+    WakelockPlus.disable();
     super.dispose();
   }
 
@@ -315,6 +320,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     if (!mounted || controller == null || position == null) return;
 
     _resumeFollowingTimer?.cancel();
+    await WakelockPlus.enable();
     setState(() => _following = true);
     await controller.updateMyLocationTrackingMode(
       _navigationTargetIndex != null
@@ -327,15 +333,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   void _handleTrackingDismissed() {
     if (!mounted) return;
 
-    setState(() => _following = false);
     _resumeFollowingTimer?.cancel();
-
-    if (_navigationTargetIndex != null) {
-      _resumeFollowingTimer = Timer(
-        const Duration(seconds: 4),
-        _resumeNavigationFollowing,
-      );
-    }
+    setState(() => _following = false);
   }
 
   Future<void> _onStyleLoaded() async {
@@ -520,6 +519,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     }
 
     _resumeFollowingTimer?.cancel();
+    await WakelockPlus.enable();
     setState(() {
       _loadingNavigation = true;
       _navigationTargetIndex = index;
