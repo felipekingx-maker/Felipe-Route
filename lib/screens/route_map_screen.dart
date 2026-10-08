@@ -32,6 +32,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   MapLibreMapController? _controller;
   StreamSubscription<Position>? _positionSubscription;
   Timer? _resumeFollowingTimer;
+  Timer? _smoothNavigationTimer;
+  DateTime? _lastGpsUpdateAt;
 
   bool _styleLoaded = false;
   bool _gpsEnabled = false;
@@ -53,11 +55,13 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     super.initState();
     _navigationTargetIndex = widget.navigationTargetIndex;
     _startGps();
+    _startSmoothNavigationLoop();
   }
 
   @override
   void dispose() {
     _resumeFollowingTimer?.cancel();
+    _smoothNavigationTimer?.cancel();
     _positionSubscription?.cancel();
     super.dispose();
   }
@@ -133,6 +137,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     final previous = _lastPosition;
     _previousPosition = previous;
     _lastPosition = position;
+    _lastGpsUpdateAt = DateTime.now();
 
     final controller = _controller;
     if (controller != null && _styleLoaded) {
@@ -151,28 +156,19 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           MyLocationTrackingMode.trackingGps,
         );
 
-        final heading = _navigationHeading(position);
-        final isNavigating = _navigationTargetIndex != null;
-        final target = isNavigating
-            ? _pointAhead(
-                position.latitude,
-                position.longitude,
-                heading,
-                55,
-              )
-            : LatLng(position.latitude, position.longitude);
-
-        await controller.easeCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: target,
-              zoom: isNavigating ? 18.2 : 16.5,
-              bearing: isNavigating ? heading : 0,
-              tilt: isNavigating ? (_is3D ? 60 : 0) : (_is3D ? 55 : 0),
+        if (_navigationTargetIndex == null) {
+          await controller.easeCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(
+                target: LatLng(position.latitude, position.longitude),
+                zoom: 16.5,
+                bearing: 0,
+                tilt: _is3D ? 55 : 0,
+              ),
             ),
-          ),
-          duration: const Duration(milliseconds: 300),
-        );
+            duration: const Duration(milliseconds: 300),
+          );
+        }
       }
     }
 
@@ -184,6 +180,81 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         !_loadingNavigation) {
       await _startNavigation(_navigationTargetIndex!);
     }
+  }
+
+  void _startSmoothNavigationLoop() {
+    _smoothNavigationTimer?.cancel();
+    _smoothNavigationTimer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => _updateSmoothNavigationCamera(),
+    );
+  }
+
+  Future<void> _updateSmoothNavigationCamera() async {
+    if (!_following ||
+        _navigationTargetIndex == null ||
+        !_styleLoaded ||
+        _controller == null ||
+        _lastPosition == null) {
+      return;
+    }
+
+    final position = _lastPosition!;
+    final heading = _navigationHeading(position);
+    final speed = position.speed.isFinite && position.speed > 0
+        ? position.speed
+        : 0.0;
+
+    final updatedAt = _lastGpsUpdateAt ?? DateTime.now();
+    final ageSeconds = DateTime.now()
+        .difference(updatedAt)
+        .inMilliseconds
+        .clamp(0, 900) /
+        1000.0;
+
+    // Entre duas leituras reais do GPS, avança visualmente o veículo
+    // pela velocidade/direção atual. O limite curto evita "adivinhar"
+    // demais em curvas ou quando o sinal fica ruim.
+    final predictedMeters = speed * ageSeconds;
+    final predicted = predictedMeters > 0.4
+        ? _pointAhead(
+            position.latitude,
+            position.longitude,
+            heading,
+            predictedMeters,
+          )
+        : LatLng(position.latitude, position.longitude);
+
+    final cameraTarget = _pointAhead(
+      predicted.latitude,
+      predicted.longitude,
+      heading,
+      55,
+    );
+
+    final controller = _controller!;
+
+    await controller.updateManualLocation(
+      ManualLocationUpdate(
+        target: predicted,
+        horizontalAccuracy: position.accuracy,
+        altitude: position.altitude,
+        bearing: heading,
+        speed: speed,
+      ),
+    );
+
+    await controller.easeCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: cameraTarget,
+          zoom: 18.2,
+          bearing: heading,
+          tilt: _is3D ? 60 : 0,
+        ),
+      ),
+      duration: const Duration(milliseconds: 120),
+    );
   }
 
   double _navigationHeading(Position position) {
