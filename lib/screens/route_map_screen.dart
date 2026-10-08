@@ -327,6 +327,13 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     setState(() => _following = false);
   }
 
+  void _handleMapInteraction() {
+    if (!mounted || _navigationTargetIndex == null || !_following) return;
+
+    _resumeFollowingTimer?.cancel();
+    setState(() => _following = false);
+  }
+
   Future<void> _onStyleLoaded() async {
     _styleLoaded = true;
     final controller = _controller;
@@ -1061,31 +1068,35 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       ),
       body: Stack(
         children: [
-          MapLibreMap(
-            styleString: MapLibreStyles.openfreemapLiberty,
-            initialCameraPosition: CameraPosition(
-              target: initialTarget,
-              zoom: routeStops.isEmpty ? 4 : 14,
-              tilt: _is3D ? 50 : 0,
+          Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _handleMapInteraction(),
+            child: MapLibreMap(
+              styleString: MapLibreStyles.openfreemapLiberty,
+              initialCameraPosition: CameraPosition(
+                target: initialTarget,
+                zoom: routeStops.isEmpty ? 4 : 14,
+                tilt: _is3D ? 50 : 0,
+              ),
+              onMapCreated: (controller) {
+                _controller = controller;
+              },
+              onStyleLoadedCallback: _onStyleLoaded,
+              myLocationEnabled:
+                  _gpsEnabled && _navigationTargetIndex == null,
+              locationSource: const ManualLocationSource(),
+              myLocationTrackingMode:
+                  _following && _navigationTargetIndex == null
+                      ? MyLocationTrackingMode.trackingGps
+                      : MyLocationTrackingMode.none,
+              myLocationRenderMode: MyLocationRenderMode.gps,
+              compassEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              annotationConsumeTapEvents: const [],
+              onMapClick: (_, coordinates) => _handleMapTap(coordinates),
+              onCameraTrackingDismissed: _handleTrackingDismissed,
             ),
-            onMapCreated: (controller) {
-              _controller = controller;
-            },
-            onStyleLoadedCallback: _onStyleLoaded,
-            myLocationEnabled:
-                _gpsEnabled && _navigationTargetIndex == null,
-            locationSource: const ManualLocationSource(),
-            myLocationTrackingMode:
-                _following && _navigationTargetIndex == null
-                    ? MyLocationTrackingMode.trackingGps
-                    : MyLocationTrackingMode.none,
-            myLocationRenderMode: MyLocationRenderMode.gps,
-            compassEnabled: true,
-            rotateGesturesEnabled: true,
-            tiltGesturesEnabled: true,
-            annotationConsumeTapEvents: const [],
-            onMapClick: (_, coordinates) => _handleMapTap(coordinates),
-            onCameraTrackingDismissed: _handleTrackingDismissed,
           ),
           if (_navigationTargetIndex != null && _following)
             Positioned(
