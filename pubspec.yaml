@@ -1,7 +1,7 @@
 name: felipe_route
 description: Beta de app Android para entregadores com agrupamento de paradas e pacotes.
 publish_to: "none"
-version: 0.3.4+16
+version: 0.3.5+17
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
