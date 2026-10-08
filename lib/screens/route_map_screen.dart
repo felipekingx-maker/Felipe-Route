@@ -546,9 +546,17 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       await controller.addLine(
         LineOptions(
           geometry: route.points,
-          lineColor: '#0B57D0',
-          lineWidth: 7,
+          lineColor: '#FFFFFF',
+          lineWidth: 11,
           lineOpacity: 0.95,
+        ),
+      );
+      await controller.addLine(
+        LineOptions(
+          geometry: route.points,
+          lineColor: '#1A73E8',
+          lineWidth: 7,
+          lineOpacity: 1.0,
         ),
       );
 
@@ -1021,46 +1029,30 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 1,
-        titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _navigationTargetIndex == null
-                  ? 'Mapa da rota'
-                  : 'Parada ${_navigationTargetIndex! + 1}',
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
-              ),
-            ),
-            if (_navigationTargetIndex != null)
-              Text(
-                _navigationDestinationText(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      appBar: _navigationTargetIndex != null
+          ? null
+          : AppBar(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 1,
+              titleSpacing: 0,
+              title: const Text(
+                'Mapa da rota',
                 style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
                 ),
               ),
-          ],
-        ),
-        actions: [
-          if (missingCount > 0)
-            IconButton(
-              tooltip: 'Localizar endereços',
-              onPressed:
-                  _locatingAddresses ? null : _locateMissingAddresses,
-              icon: const Icon(Icons.location_searching_rounded),
+              actions: [
+                if (missingCount > 0)
+                  IconButton(
+                    tooltip: 'Localizar endereços',
+                    onPressed:
+                        _locatingAddresses ? null : _locateMissingAddresses,
+                    icon: const Icon(Icons.location_searching_rounded),
+                  ),
+              ],
             ),
-        ],
-      ),
       body: Stack(
         children: [
           Listener(
@@ -1097,28 +1089,32 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 150,
+              bottom: 158,
               child: IgnorePointer(
                 child: Center(
                   child: Container(
-                    width: 44,
-                    height: 44,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A73E8),
+                      color: Colors.white,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
                       boxShadow: const [
                         BoxShadow(
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                          color: Color(0x33000000),
+                          blurRadius: 10,
+                          offset: Offset(0, 3),
+                          color: Color(0x3D000000),
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.navigation_rounded,
-                      color: Colors.white,
-                      size: 25,
+                    child: Center(
+                      child: Transform.rotate(
+                        angle: -math.pi / 4,
+                        child: const Icon(
+                          Icons.navigation_rounded,
+                          color: Color(0xFF1A73E8),
+                          size: 34,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -1127,54 +1123,101 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           Positioned(
             left: 12,
             right: 12,
-            top: 12,
+            top: MediaQuery.paddingOf(context).top + 10,
             child: Material(
-              elevation: 4,
-              borderRadius: BorderRadius.circular(16),
+              elevation: 5,
+              borderRadius: BorderRadius.circular(
+                _navigationTargetIndex != null ? 18 : 16,
+              ),
               color: _navigationTargetIndex != null
                   ? const Color(0xFF1A73E8)
                   : Colors.white.withValues(alpha: 0.96),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
+                padding: EdgeInsets.fromLTRB(
+                  _navigationTargetIndex != null ? 8 : 12,
+                  10,
+                  14,
+                  10,
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: _navigationTargetIndex != null
-                            ? Colors.white.withValues(alpha: 0.18)
-                            : const Color(0xFFE8F0FE),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        _gpsEnabled
-                            ? Icons.navigation_rounded
-                            : Icons.gps_off_rounded,
-                        color: _navigationTargetIndex != null
-                            ? Colors.white
-                            : const Color(0xFF1A73E8),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _gpsError ??
-                            (_lastPosition == null
-                                ? 'Procurando sua localização...'
-                                : _navigationSummary()),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                          color: _navigationTargetIndex != null
-                              ? Colors.white
-                              : const Color(0xFF202124),
+                    if (_navigationTargetIndex != null)
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
                         ),
+                        tooltip: 'Voltar',
+                      )
+                    else
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE8F0FE),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _gpsEnabled
+                              ? Icons.navigation_rounded
+                              : Icons.gps_off_rounded,
+                          color: const Color(0xFF1A73E8),
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    if (_navigationTargetIndex != null)
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.straight_rounded,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                    if (_navigationTargetIndex != null)
+                      const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _gpsError ??
+                                (_lastPosition == null
+                                    ? 'Procurando sua localização...'
+                                    : (_navigationTargetIndex != null
+                                        ? 'Siga pela rota'
+                                        : _navigationSummary())),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize:
+                                  _navigationTargetIndex != null ? 21 : 15,
+                              color: _navigationTargetIndex != null
+                                  ? Colors.white
+                                  : const Color(0xFF202124),
+                            ),
+                          ),
+                          if (_navigationTargetIndex != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              _navigationDestinationText(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFE8F0FE),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
@@ -1184,19 +1227,21 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           ),
           Positioned(
             right: 14,
-            bottom: _navigationTargetIndex != null ? 106 : 28,
+            bottom: _navigationTargetIndex != null ? 120 : 28,
             child: Column(
               children: [
-                FloatingActionButton.small(
-                  heroTag: 'gps-center',
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF202124),
-                  elevation: 4,
-                  onPressed: _centerOnUser,
-                  tooltip: 'Minha posição',
-                  child: const Icon(Icons.my_location_rounded),
-                ),
-                const SizedBox(height: 10),
+                if (!_following || _navigationTargetIndex == null) ...[
+                  FloatingActionButton.small(
+                    heroTag: 'gps-center',
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF1A73E8),
+                    elevation: 4,
+                    onPressed: _centerOnUser,
+                    tooltip: 'Centralizar',
+                    child: const Icon(Icons.my_location_rounded),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 FloatingActionButton.small(
                   heroTag: 'map-3d',
                   backgroundColor: Colors.white,
@@ -1213,18 +1258,15 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           ),
           if (_navigationTargetIndex != null)
             Positioned(
-              left: 12,
-              right: 12,
-              bottom: 18,
+              left: 10,
+              right: 10,
+              bottom: 12,
               child: Material(
-                elevation: 5,
-                borderRadius: BorderRadius.circular(20),
+                elevation: 6,
+                borderRadius: BorderRadius.circular(24),
                 color: Colors.white,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
                   child: Row(
                     children: [
                       Expanded(
@@ -1234,27 +1276,43 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                             Text(
                               _navigationEtaText(),
                               style: const TextStyle(
-                                fontSize: 24,
+                                fontSize: 28,
+                                height: 1,
                                 fontWeight: FontWeight.w900,
                                 color: Color(0xFF188038),
                               ),
                             ),
+                            const SizedBox(height: 5),
                             Text(
                               '${_navigationDistanceText()} • Parada ${_navigationTargetIndex! + 1}',
                               style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
                                 color: Color(0xFF5F6368),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      FilledButton.tonalIcon(
-                        onPressed: _centerOnUser,
-                        icon: const Icon(Icons.navigation_rounded),
-                        label: const Text('CENTRALIZAR'),
-                      ),
+                      if (!_following)
+                        FilledButton.tonalIcon(
+                          onPressed: _centerOnUser,
+                          icon: const Icon(Icons.navigation_rounded),
+                          label: const Text('CENTRALIZAR'),
+                        )
+                      else
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE8F0FE),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.more_horiz_rounded,
+                            color: Color(0xFF1A73E8),
+                          ),
+                        ),
                     ],
                   ),
                 ),
