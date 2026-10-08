@@ -1,7 +1,7 @@
 {
-  "version": "0.3.2",
-  "build": 14,
+  "version": "0.3.3",
+  "build": 15,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Novo visual de navegacao inspirado em apps de mapas, com destino em destaque, ETA e distancia na faixa inferior, controles flutuantes mais limpos e melhorias recentes no acompanhamento do veiculo.",
+  "notes": "Navegacao mais suave com camera acompanhando o carro continuamente, tela mantida ligada durante a navegacao, retorno ao carro apenas ao tocar em Centralizar e melhorias no agrupamento de enderecos e complementos.",
   "force": false
 }
