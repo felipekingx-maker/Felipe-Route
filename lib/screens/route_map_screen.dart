@@ -314,22 +314,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     return LatLng(lat2 * 180 / math.pi, lon2 * 180 / math.pi);
   }
 
-  Future<void> _resumeNavigationFollowing() async {
-    final controller = _controller;
-    final position = _lastPosition;
-    if (!mounted || controller == null || position == null) return;
-
-    _resumeFollowingTimer?.cancel();
-    await WakelockPlus.enable();
-    setState(() => _following = true);
-    await controller.updateMyLocationTrackingMode(
-      _navigationTargetIndex != null
-          ? MyLocationTrackingMode.none
-          : MyLocationTrackingMode.trackingGps,
-    );
-    await _pushPosition(position);
-  }
-
   void _handleTrackingDismissed() {
     if (!mounted) return;
 
