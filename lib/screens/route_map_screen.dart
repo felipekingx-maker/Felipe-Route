@@ -48,6 +48,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   int? _navigationTargetIndex;
   NavigationRoute? _navigationRoute;
   bool _loadingNavigation = false;
+  bool _cameraFrameBusy = false;
   final Map<int, Circle> _stopCircles = {};
   final Map<int, Symbol> _stopSymbols = {};
 
@@ -146,15 +147,17 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
     final controller = _controller;
     if (controller != null && _styleLoaded) {
-      await controller.updateManualLocation(
-        ManualLocationUpdate(
-          target: LatLng(position.latitude, position.longitude),
-          horizontalAccuracy: position.accuracy,
-          altitude: position.altitude,
-          bearing: position.heading,
-          speed: position.speed,
-        ),
-      );
+      if (_navigationTargetIndex == null) {
+        await controller.updateManualLocation(
+          ManualLocationUpdate(
+            target: LatLng(position.latitude, position.longitude),
+            horizontalAccuracy: position.accuracy,
+            altitude: position.altitude,
+            bearing: position.heading,
+            speed: position.speed,
+          ),
+        );
+      }
 
       if (_following) {
         if (_navigationTargetIndex == null) {
@@ -195,7 +198,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   }
 
   Future<void> _updateSmoothNavigationCamera() async {
-    if (!_following ||
+    if (_cameraFrameBusy ||
+        !_following ||
         _navigationTargetIndex == null ||
         !_styleLoaded ||
         _controller == null ||
@@ -203,62 +207,64 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       return;
     }
 
-    final position = _lastPosition!;
-    final heading = _navigationHeading(position);
-    final speed = position.speed.isFinite && position.speed > 0
-        ? position.speed
-        : 0.0;
+    _cameraFrameBusy = true;
+    try {
+      final position = _lastPosition!;
+      final heading = _navigationHeading(position);
+      final speed = position.speed.isFinite && position.speed > 0
+          ? position.speed
+          : 0.0;
 
-    final updatedAt = _lastGpsUpdateAt ?? DateTime.now();
-    final ageSeconds = DateTime.now()
-        .difference(updatedAt)
-        .inMilliseconds
-        .clamp(0, 1200) /
-        1000.0;
+      final updatedAt = _lastGpsUpdateAt ?? DateTime.now();
+      final ageSeconds = DateTime.now()
+              .difference(updatedAt)
+              .inMilliseconds
+              .clamp(0, 1200) /
+          1000.0;
 
-    // Entre duas leituras reais do GPS, avança visualmente o veículo
-    // pela velocidade/direção atual. O limite curto evita "adivinhar"
-    // demais em curvas ou quando o sinal fica ruim.
-    final predictedMeters = speed * ageSeconds;
-    final predicted = predictedMeters > 0.4
-        ? _pointAhead(
-            position.latitude,
-            position.longitude,
-            heading,
-            predictedMeters,
-          )
-        : LatLng(position.latitude, position.longitude);
+      final predictedMeters = speed * ageSeconds;
+      final predicted = predictedMeters > 0.15
+          ? _pointAhead(
+              position.latitude,
+              position.longitude,
+              heading,
+              predictedMeters,
+            )
+          : LatLng(position.latitude, position.longitude);
 
-    final cameraTarget = _pointAhead(
-      predicted.latitude,
-      predicted.longitude,
-      heading,
-      55,
-    );
+      // O alvo fica adiantado em relação ao carro. Como o mapa gira
+      // junto com o heading, o carro permanece visualmente na parte
+      // inferior da tela enquanto o mapa se desloca por baixo.
+      final cameraTarget = _pointAhead(
+        predicted.latitude,
+        predicted.longitude,
+        heading,
+        55,
+      );
 
-    final controller = _controller!;
+      final controller = _controller!;
 
-    await controller.updateManualLocation(
-      ManualLocationUpdate(
-        target: predicted,
-        horizontalAccuracy: position.accuracy,
-        altitude: position.altitude,
-        bearing: heading,
-        speed: speed,
-      ),
-    );
+      // Durante a navegação a câmera é 100% manual. Não usamos
+      // trackingGps, pois ele disputa o controle da câmera.
+      await controller.updateMyLocationTrackingMode(
+        MyLocationTrackingMode.none,
+      );
 
-    await controller.easeCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: cameraTarget,
-          zoom: 18.2,
-          bearing: heading,
-          tilt: _is3D ? 60 : 0,
+      // Atualização direta em pequenos passos (~30 fps), evitando
+      // acumular animações easeCamera entre uma leitura de GPS e outra.
+      await controller.moveCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: cameraTarget,
+            zoom: 18.2,
+            bearing: heading,
+            tilt: _is3D ? 60 : 0,
+          ),
         ),
-      ),
-      duration: const Duration(milliseconds: 45),
-    );
+      );
+    } finally {
+      _cameraFrameBusy = false;
+    }
   }
 
   double _navigationHeading(Position position) {
@@ -1066,11 +1072,13 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
               _controller = controller;
             },
             onStyleLoadedCallback: _onStyleLoaded,
-            myLocationEnabled: _gpsEnabled,
+            myLocationEnabled:
+                _gpsEnabled && _navigationTargetIndex == null,
             locationSource: const ManualLocationSource(),
-            myLocationTrackingMode: _following
-                ? MyLocationTrackingMode.trackingGps
-                : MyLocationTrackingMode.none,
+            myLocationTrackingMode:
+                _following && _navigationTargetIndex == null
+                    ? MyLocationTrackingMode.trackingGps
+                    : MyLocationTrackingMode.none,
             myLocationRenderMode: MyLocationRenderMode.gps,
             compassEnabled: true,
             rotateGesturesEnabled: true,
@@ -1079,6 +1087,37 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             onMapClick: (_, coordinates) => _handleMapTap(coordinates),
             onCameraTrackingDismissed: _handleTrackingDismissed,
           ),
+          if (_navigationTargetIndex != null && _following)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 150,
+              child: IgnorePointer(
+                child: Center(
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A73E8),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 4),
+                      boxShadow: const [
+                        BoxShadow(
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                          color: Color(0x33000000),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.navigation_rounded,
+                      color: Colors.white,
+                      size: 25,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             left: 12,
             right: 12,
