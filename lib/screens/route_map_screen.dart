@@ -35,7 +35,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   StreamSubscription<Position>? _positionSubscription;
   Timer? _resumeFollowingTimer;
   Timer? _smoothNavigationTimer;
-  DateTime? _lastGpsUpdateAt;
 
   bool _styleLoaded = false;
   bool _gpsEnabled = false;
@@ -145,7 +144,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     final previous = _lastPosition;
     _previousPosition = previous;
     _lastPosition = position;
-    _lastGpsUpdateAt = DateTime.now();
 
     _positionEngine.update(
       latitude: position.latitude,
