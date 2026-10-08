@@ -306,21 +306,30 @@ class ManifestParser {
   String _normalizeComplementPart(String value) {
     var result = _normalizeAddressPart(value);
 
-    // Padroniza formas diferentes de escrever a mesma unidade física.
     result = result
         .replaceAll(RegExp(r'\b(apartamento|apto)\b'), 'ap')
-        .replaceAll(RegExp(r'\b(blk)\b'), 'bloco')
-        .replaceAll(RegExp(r'\b(tower)\b'), 'torre')
-        .replaceAll(RegExp(r'\b(unit)\b'), 'unidade')
-        .replaceAll(RegExp(r'\b(conjunto)\b'), 'cj')
-        .replaceAll(RegExp(r'\b(qd)\b'), 'quadra')
-        .replaceAll(RegExp(r'\b(edificio)\b'), 'predio');
+        .replaceAll(RegExp(r'\bblk\b'), 'bloco')
+        .replaceAll(RegExp(r'\btower\b'), 'torre')
+        .replaceAll(RegExp(r'\bunit\b'), 'unidade')
+        .replaceAll(RegExp(r'\bconjunto\b'), 'cj')
+        .replaceAll(RegExp(r'\bqd\b'), 'quadra')
+        .replaceAll(RegExp(r'\bedificio\b'), 'predio');
 
-    // Referências descritivas não representam outro local físico.
     final weakReferencePatterns = <RegExp>[
       RegExp(r'\b(fundos|frente|lateral)\b'),
-      RegExp(r'\b(portao|portão)\b.*
+      RegExp(r'\bportao\b.*'),
+      RegExp(r'\b(proximo|perto)\b.*'),
+      RegExp(r'\b(referencia|ref)\b.*'),
+    ];
 
+    for (final pattern in weakReferencePatterns) {
+      result = result.replaceAll(pattern, ' ');
+    }
+
+    return result
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
   String _normalizeAddressPart(String value) {
     var result = value
         .toLowerCase()
