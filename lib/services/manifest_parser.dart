@@ -291,16 +291,244 @@ class ManifestParser {
 
   String _physicalAddressFallback(String address, String? complement) {
     final base = _normalizeAddressPart(address);
-    final comp = _normalizeAddressPart(complement ?? '');
+    final comp = _normalizeComplementPart(complement ?? '');
 
     if (comp.isEmpty) return base;
 
     final unitPattern = RegExp(
-      r'\b(ap|apto|apartamento|bloco|blk|torre|tower|unidade|unit|sala|conjunto|cj|casa|lote|quadra|qd|andar|pavimento|predio|edificio|condominio)\b',
+      r'\b(ap|bloco|torre|unidade|sala|cj|casa|lote|quadra|andar|pavimento|predio)\b',
       caseSensitive: false,
     );
 
     return unitPattern.hasMatch(comp) ? '$base|unit:$comp' : base;
+  }
+
+  String _normalizeComplementPart(String value) {
+    var result = _normalizeAddressPart(value);
+
+    // Padroniza formas diferentes de escrever a mesma unidade física.
+    result = result
+        .replaceAll(RegExp(r'\b(apartamento|apto)\b'), 'ap')
+        .replaceAll(RegExp(r'\b(blk)\b'), 'bloco')
+        .replaceAll(RegExp(r'\b(tower)\b'), 'torre')
+        .replaceAll(RegExp(r'\b(unit)\b'), 'unidade')
+        .replaceAll(RegExp(r'\b(conjunto)\b'), 'cj')
+        .replaceAll(RegExp(r'\b(qd)\b'), 'quadra')
+        .replaceAll(RegExp(r'\b(edificio)\b'), 'predio');
+
+    // Referências descritivas não representam outro local físico.
+    final weakReferencePatterns = <RegExp>[
+      RegExp(r'\b(fundos|frente|lateral)\b'),
+      RegExp(r'\b(portao|portão)\b.*
+
+  String _normalizeAddressPart(String value) {
+    var result = value
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ã', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ì', 'i')
+        .replaceAll('î', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ò', 'o')
+        .replaceAll('ô', 'o')
+        .replaceAll('õ', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ç', 'c');
+
+    result = result.replaceAll(RegExp(r'\b\d{5}[- ]?\d{3}\b'), ' ');
+
+    return result
+        .replaceAll(RegExp(r'\b(r|r\.)\b'), 'rua')
+        .replaceAll(RegExp(r'\b(av|av\.)\b'), 'avenida')
+        .replaceAll(RegExp(r'\b(rod|rod\.)\b'), 'rodovia')
+        .replaceAll(RegExp(r'\b(estr|estr\.)\b'), 'estrada')
+        .replaceAll(RegExp(r'\b(al|al\.)\b'), 'alameda')
+        .replaceAll(RegExp(r'\b(trav|trav\.)\b'), 'travessa')
+        .replaceAll(RegExp(r'\bn[º°o]?\b'), ' ')
+        .replaceAll(RegExp(r'\bnumero\b'), ' ')
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  double _distanceMeters(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadius = 6371000.0;
+
+    double radians(double degrees) => degrees * 3.141592653589793 / 180.0;
+
+    final dLat = radians(lat2 - lat1);
+    final dLon = radians(lon2 - lon1);
+
+    final a =
+        (math.sin(dLat / 2) * math.sin(dLat / 2)) +
+        math.cos(radians(lat1)) *
+            math.cos(radians(lat2)) *
+            (math.sin(dLon / 2) * math.sin(dLon / 2));
+
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  String? _nullIfEmpty(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+}
+),
+      RegExp(r'\b(proximo|próximo|perto)\b.*
+
+  String _normalizeAddressPart(String value) {
+    var result = value
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ã', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ì', 'i')
+        .replaceAll('î', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ò', 'o')
+        .replaceAll('ô', 'o')
+        .replaceAll('õ', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ç', 'c');
+
+    result = result.replaceAll(RegExp(r'\b\d{5}[- ]?\d{3}\b'), ' ');
+
+    return result
+        .replaceAll(RegExp(r'\b(r|r\.)\b'), 'rua')
+        .replaceAll(RegExp(r'\b(av|av\.)\b'), 'avenida')
+        .replaceAll(RegExp(r'\b(rod|rod\.)\b'), 'rodovia')
+        .replaceAll(RegExp(r'\b(estr|estr\.)\b'), 'estrada')
+        .replaceAll(RegExp(r'\bn[º°o]?\b'), ' ')
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  double _distanceMeters(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadius = 6371000.0;
+
+    double radians(double degrees) => degrees * 3.141592653589793 / 180.0;
+
+    final dLat = radians(lat2 - lat1);
+    final dLon = radians(lon2 - lon1);
+
+    final a =
+        (math.sin(dLat / 2) * math.sin(dLat / 2)) +
+        math.cos(radians(lat1)) *
+            math.cos(radians(lat2)) *
+            (math.sin(dLon / 2) * math.sin(dLon / 2));
+
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  String? _nullIfEmpty(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+}
+),
+      RegExp(r'\b(referencia|referência|ref)\b.*
+
+  String _normalizeAddressPart(String value) {
+    var result = value
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('à', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ã', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ì', 'i')
+        .replaceAll('î', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ò', 'o')
+        .replaceAll('ô', 'o')
+        .replaceAll('õ', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ç', 'c');
+
+    result = result.replaceAll(RegExp(r'\b\d{5}[- ]?\d{3}\b'), ' ');
+
+    return result
+        .replaceAll(RegExp(r'\b(r|r\.)\b'), 'rua')
+        .replaceAll(RegExp(r'\b(av|av\.)\b'), 'avenida')
+        .replaceAll(RegExp(r'\b(rod|rod\.)\b'), 'rodovia')
+        .replaceAll(RegExp(r'\b(estr|estr\.)\b'), 'estrada')
+        .replaceAll(RegExp(r'\bn[º°o]?\b'), ' ')
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  double _distanceMeters(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadius = 6371000.0;
+
+    double radians(double degrees) => degrees * 3.141592653589793 / 180.0;
+
+    final dLat = radians(lat2 - lat1);
+    final dLon = radians(lon2 - lon1);
+
+    final a =
+        (math.sin(dLat / 2) * math.sin(dLat / 2)) +
+        math.cos(radians(lat1)) *
+            math.cos(radians(lat2)) *
+            (math.sin(dLon / 2) * math.sin(dLon / 2));
+
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  String? _nullIfEmpty(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+}
+),
+    ];
+
+    for (final pattern in weakReferencePatterns) {
+      result = result.replaceAll(pattern, ' ');
+    }
+
+    return result
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   String _normalizeAddressPart(String value) {
