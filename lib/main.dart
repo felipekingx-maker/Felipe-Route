@@ -45,7 +45,7 @@ class FelipeRouteApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AuthGate(),
+      home: const HomeScreen(),
     );
   }
 }
@@ -285,7 +285,10 @@ class _LoginScreenState extends State<LoginScreen> {
           password: password,
         );
 
-        if (mounted) {
+        if (!mounted) return;
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true);
+        } else {
           setState(() => _loading = false);
         }
       }
@@ -428,6 +431,174 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class AccountScreen extends StatefulWidget {
+  const AccountScreen({super.key});
+
+  @override
+  State<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends State<AccountScreen> {
+  bool _loading = true;
+  Map<String, dynamic>? _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _profile = null;
+        });
+      }
+      return;
+    }
+
+    try {
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('email,status,trial_end,plan,is_admin')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _profile = profile;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _profile = null;
+      });
+    }
+  }
+
+  Future<void> _login() async {
+    final loggedIn = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
+    if (loggedIn == true && mounted) {
+      setState(() => _loading = true);
+      await _load();
+    }
+  }
+
+  Future<void> _logout() async {
+    await Supabase.instance.client.auth.signOut();
+    if (!mounted) return;
+    setState(() {
+      _profile = null;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = Supabase.instance.client.auth.currentSession;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Conta',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
+      ),
+      body: SafeArea(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Card(
+                    color: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: session == null
+                          ? Column(
+                              children: [
+                                const Icon(
+                                  Icons.account_circle_outlined,
+                                  size: 72,
+                                  color: Color(0xFF1F6FEB),
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Você não está conectado',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'O login será solicitado ao importar um manifesto.',
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 18),
+                                FilledButton.icon(
+                                  onPressed: _login,
+                                  icon: const Icon(Icons.login_rounded),
+                                  label: const Text('ENTRAR'),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.verified_user_rounded,
+                                  size: 54,
+                                  color: Color(0xFF1F6FEB),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _profile?['email']?.toString() ??
+                                      session.user.email ??
+                                      'Conta conectada',
+                                  style: const TextStyle(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Status: ${_profile?['status'] ?? '---'}',
+                                ),
+                                Text(
+                                  'Plano: ${_profile?['plan'] ?? '---'}',
+                                ),
+                                if (_profile?['is_admin'] == true)
+                                  const Text(
+                                    'Administrador',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                const SizedBox(height: 18),
+                                OutlinedButton.icon(
+                                  onPressed: _logout,
+                                  icon: const Icon(Icons.logout_rounded),
+                                  label: const Text('SAIR DA CONTA'),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -576,7 +747,95 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<bool> _ensureManifestAccess() async {
+    var session = Supabase.instance.client.auth.currentSession;
+
+    if (session == null) {
+      final loggedIn = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+
+      if (loggedIn != true || !mounted) return false;
+      session = Supabase.instance.client.auth.currentSession;
+      if (session == null) return false;
+    }
+
+    try {
+      final response = await Supabase.instance.client
+          .from('profiles')
+          .select('email,status,trial_end,plan,is_admin')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+      if (!mounted) return false;
+
+      if (response == null) {
+        await _showAccessMessage(
+          'Perfil não encontrado. Fale com o administrador.',
+        );
+        return false;
+      }
+
+      final status = response['status']?.toString() ?? 'blocked';
+      final trialEndRaw = response['trial_end']?.toString();
+      final isAdmin = response['is_admin'] == true;
+      final trialEnd =
+          trialEndRaw == null ? null : DateTime.tryParse(trialEndRaw)?.toLocal();
+      final trialExpired =
+          !isAdmin && trialEnd != null && DateTime.now().isAfter(trialEnd);
+
+      if (status != 'active') {
+        await _showAccessMessage(
+          'Seu acesso está bloqueado. Fale com o administrador.',
+        );
+        return false;
+      }
+
+      if (trialExpired) {
+        await _showAccessMessage(
+          'Seu período de teste terminou. Fale com o administrador.',
+        );
+        return false;
+      }
+
+      return true;
+    } catch (_) {
+      if (!mounted) return false;
+      await _showAccessMessage(
+        'Não foi possível verificar seu acesso agora. Tente novamente.',
+      );
+      return false;
+    }
+  }
+
+  Future<void> _showAccessMessage(String message) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Acesso ao manifesto'),
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openAccount() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AccountScreen()),
+    );
+    if (mounted) setState(() {});
+  }
+
   Future<void> _importManifest() async {
+    final allowed = await _ensureManifestAccess();
+    if (!allowed || !mounted) return;
+
     final route = await Navigator.of(context).push<DeliveryRoute>(
       MaterialPageRoute(builder: (_) => const ImportManifestScreen()),
     );
@@ -940,6 +1199,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (value == 'update') {
                 _checkUpdates(manual: true);
               }
+              if (value == 'account') {
+                _openAccount();
+              }
             },
             itemBuilder: (context) => const [
               PopupMenuItem(
@@ -949,6 +1211,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   leading: Icon(Icons.qr_code_scanner_rounded),
                   title: Text('Contador de pacotes'),
                   subtitle: Text('QR e código de barras'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'account',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.account_circle_outlined),
+                  title: Text('Conta'),
+                  subtitle: Text('Entrar, sair e ver seu acesso'),
                 ),
               ),
               PopupMenuItem(
