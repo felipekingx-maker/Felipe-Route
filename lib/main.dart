@@ -872,7 +872,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           builder: (_) => RouteMapScreen(
             route: route,
             currentIndex: 0,
-            navigationTargetIndex: 0,
           ),
         ),
       );
@@ -1664,13 +1663,12 @@ class _RouteScreenState extends State<RouteScreen> {
                                   builder: (_) => RouteMapScreen(
                                     route: widget.route,
                                     currentIndex: _index,
-                                    navigationTargetIndex: _index,
                                   ),
                                 ),
                               );
                             },
-                            icon: const Icon(Icons.navigation_rounded),
-                            label: const Text('NAVEGAR'),
+                            icon: const Icon(Icons.map_rounded),
+                            label: const Text('VER NO MAPA'),
                             style: FilledButton.styleFrom(
                               minimumSize: const Size.fromHeight(52),
                             ),
