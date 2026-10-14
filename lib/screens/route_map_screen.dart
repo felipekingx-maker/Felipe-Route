@@ -155,10 +155,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     await controller.setSymbolTextAllowOverlap(true);
     await controller.setSymbolTextIgnorePlacement(true);
 
-    final routeStops = widget.route.stops
-        .where((s) => s.latitude != null && s.longitude != null)
-        .toList();
-
     for (var i = 0; i < widget.route.stops.length; i++) {
       final stop = widget.route.stops[i];
       if (stop.latitude == null || stop.longitude == null) continue;
