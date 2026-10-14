@@ -741,7 +741,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                           _gpsError ??
                               (_lastPosition == null
                                   ? 'Obtendo sua localização...'
-                                  : 'GPS ativo • ${D}{routeStops.length} paradas no mapa'),
+                                  : 'GPS ativo • ${routeStops.length} paradas no mapa'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -794,7 +794,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                   child: Text(
                     _progress == null
                         ? 'Localizando endereços...'
-                        : 'Endereços: ${D}{_progress!.done}/${D}{_progress!.total} • ${D}{_progress!.found} encontrados',
+                        : 'Endereços: ${_progress!.done}/${_progress!.total} • ${_progress!.found} encontrados',
                     textAlign: TextAlign.center,
                   ),
                 ),
