@@ -1,29 +1,22 @@
 
 import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/delivery_models.dart';
 import '../services/geocoding_service.dart';
-import '../services/navigation_service.dart';
-import '../services/navigation_position_engine.dart';
 import '../services/route_persistence_service.dart';
 
 class RouteMapScreen extends StatefulWidget {
   final DeliveryRoute route;
   final int? currentIndex;
-  final int? navigationTargetIndex;
 
   const RouteMapScreen({
     super.key,
     required this.route,
     this.currentIndex,
-    this.navigationTargetIndex,
   });
 
   @override
@@ -33,8 +26,6 @@ class RouteMapScreen extends StatefulWidget {
 class _RouteMapScreenState extends State<RouteMapScreen> {
   MapLibreMapController? _controller;
   StreamSubscription<Position>? _positionSubscription;
-  Timer? _resumeFollowingTimer;
-  Timer? _smoothNavigationTimer;
 
   bool _styleLoaded = false;
   bool _gpsEnabled = false;
@@ -43,33 +34,19 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   bool _locatingAddresses = false;
   String? _gpsError;
   Position? _lastPosition;
-  Position? _previousPosition;
   GeocodingProgress? _progress;
-  int? _navigationTargetIndex;
-  NavigationRoute? _navigationRoute;
-  bool _loadingNavigation = false;
-  bool _cameraFrameBusy = false;
-  final NavigationPositionEngine _positionEngine = NavigationPositionEngine();
   final Map<int, Circle> _stopCircles = {};
   final Map<int, Symbol> _stopSymbols = {};
 
   @override
   void initState() {
     super.initState();
-    _navigationTargetIndex = widget.navigationTargetIndex;
-    if (_navigationTargetIndex != null) {
-      WakelockPlus.enable();
-    }
     _startGps();
-    _startSmoothNavigationLoop();
   }
 
   @override
   void dispose() {
-    _resumeFollowingTimer?.cancel();
-    _smoothNavigationTimer?.cancel();
     _positionSubscription?.cancel();
-    WakelockPlus.disable();
     super.dispose();
   }
 
@@ -141,178 +118,32 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   }
 
   Future<void> _pushPosition(Position position) async {
-    final previous = _lastPosition;
-    _previousPosition = previous;
     _lastPosition = position;
-
-    _positionEngine.update(
-      latitude: position.latitude,
-      longitude: position.longitude,
-      accuracy: position.accuracy,
-      speed: position.speed,
-      heading: _navigationHeading(position),
-      timestamp: DateTime.now(),
-      route: _navigationRoute?.points ?? const <LatLng>[],
-    );
 
     final controller = _controller;
     if (controller != null && _styleLoaded) {
-      if (_navigationTargetIndex == null) {
-        await controller.updateManualLocation(
-          ManualLocationUpdate(
-            target: LatLng(position.latitude, position.longitude),
-            horizontalAccuracy: position.accuracy,
-            altitude: position.altitude,
-            bearing: position.heading,
-            speed: position.speed,
-          ),
-        );
-      }
+      await controller.updateManualLocation(
+        ManualLocationUpdate(
+          target: LatLng(position.latitude, position.longitude),
+          horizontalAccuracy: position.accuracy,
+          altitude: position.altitude,
+          bearing: position.heading,
+          speed: position.speed,
+        ),
+      );
 
       if (_following) {
-        if (_navigationTargetIndex == null) {
-          await controller.updateMyLocationTrackingMode(
-            MyLocationTrackingMode.trackingGps,
-          );
-          await controller.easeCamera(
-            CameraUpdate.newCameraPosition(
-              CameraPosition(
-                target: LatLng(position.latitude, position.longitude),
-                zoom: 16.5,
-                bearing: 0,
-                tilt: _is3D ? 55 : 0,
-              ),
-            ),
-            duration: const Duration(milliseconds: 300),
-          );
-        }
+        await controller.updateMyLocationTrackingMode(
+          MyLocationTrackingMode.trackingGps,
+        );
       }
     }
 
     if (mounted) setState(() {});
-
-    if (_styleLoaded &&
-        _navigationTargetIndex != null &&
-        _navigationRoute == null &&
-        !_loadingNavigation) {
-      await _startNavigation(_navigationTargetIndex!);
-    }
-  }
-
-  void _startSmoothNavigationLoop() {
-    _smoothNavigationTimer?.cancel();
-    _smoothNavigationTimer = Timer.periodic(
-      const Duration(milliseconds: 33),
-      (_) => _updateSmoothNavigationCamera(),
-    );
-  }
-
-  Future<void> _updateSmoothNavigationCamera() async {
-    if (_cameraFrameBusy ||
-        !_following ||
-        _navigationTargetIndex == null ||
-        !_styleLoaded ||
-        _controller == null) {
-      return;
-    }
-
-    final visual = _positionEngine.predict(DateTime.now());
-    if (visual == null) return;
-
-    _cameraFrameBusy = true;
-    try {
-      final cameraTarget = _pointAhead(
-        visual.point.latitude,
-        visual.point.longitude,
-        visual.heading,
-        55,
-      );
-
-      final controller = _controller!;
-
-      await controller.updateMyLocationTrackingMode(
-        MyLocationTrackingMode.none,
-      );
-
-      await controller.moveCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: cameraTarget,
-            zoom: 18.2,
-            bearing: visual.heading,
-            tilt: _is3D ? 60 : 0,
-          ),
-        ),
-      );
-    } finally {
-      _cameraFrameBusy = false;
-    }
-  }
-
-  double _navigationHeading(Position position) {
-    final gpsHeading = position.heading;
-    if (gpsHeading.isFinite && gpsHeading >= 0 && position.speed > 1.2) {
-      return gpsHeading;
-    }
-
-    final previous = _previousPosition;
-    if (previous != null) {
-      final moved = Geolocator.distanceBetween(
-        previous.latitude,
-        previous.longitude,
-        position.latitude,
-        position.longitude,
-      );
-
-      if (moved >= 2) {
-        return Geolocator.bearingBetween(
-          previous.latitude,
-          previous.longitude,
-          position.latitude,
-          position.longitude,
-        );
-      }
-    }
-
-    return _controller?.cameraPosition?.bearing ?? 0;
-  }
-
-  LatLng _pointAhead(
-    double latitude,
-    double longitude,
-    double bearingDegrees,
-    double meters,
-  ) {
-    const earthRadius = 6378137.0;
-    final bearing = bearingDegrees * math.pi / 180;
-    final lat1 = latitude * math.pi / 180;
-    final lon1 = longitude * math.pi / 180;
-    final angularDistance = meters / earthRadius;
-
-    final lat2 = math.asin(
-      math.sin(lat1) * math.cos(angularDistance) +
-          math.cos(lat1) * math.sin(angularDistance) * math.cos(bearing),
-    );
-    final lon2 = lon1 +
-        math.atan2(
-          math.sin(bearing) * math.sin(angularDistance) * math.cos(lat1),
-          math.cos(angularDistance) - math.sin(lat1) * math.sin(lat2),
-        );
-
-    return LatLng(lat2 * 180 / math.pi, lon2 * 180 / math.pi);
   }
 
   void _handleTrackingDismissed() {
     if (!mounted) return;
-
-    _resumeFollowingTimer?.cancel();
-    setState(() => _following = false);
-  }
-
-  void _handleMapInteraction() {
-    if (!mounted || _navigationTargetIndex == null || !_following) return;
-
-    _resumeFollowingTimer?.cancel();
     setState(() => _following = false);
   }
 
@@ -327,30 +158,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     final routeStops = widget.route.stops
         .where((s) => s.latitude != null && s.longitude != null)
         .toList();
-
-    if (routeStops.length > 1) {
-      final roadRoute = await NavigationService.routeThroughStops(
-        routeStops
-            .map(
-              (s) => (
-                lat: s.latitude!,
-                lng: s.longitude!,
-              ),
-            )
-            .toList(),
-      );
-
-      if (roadRoute != null) {
-        await controller.addLine(
-          LineOptions(
-            geometry: roadRoute.points,
-            lineColor: '#1565C0',
-            lineWidth: 5,
-            lineOpacity: 0.9,
-          ),
-        );
-      }
-    }
 
     for (var i = 0; i < widget.route.stops.length; i++) {
       final stop = widget.route.stops[i];
@@ -468,126 +275,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     }
   }
 
-  Future<void> _startNavigation(int index) async {
-    if (_loadingNavigation || index < 0 || index >= widget.route.stops.length) {
-      return;
-    }
-
-    final position = _lastPosition;
-    final stop = widget.route.stops[index];
-
-    if (position == null) {
-      await _startGps();
-      if (mounted && _lastPosition == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Aguardando localização do GPS.')),
-        );
-      }
-      return;
-    }
-
-    if (stop.latitude == null || stop.longitude == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Esta parada ainda não possui coordenadas.'),
-          ),
-        );
-      }
-      return;
-    }
-
-    _resumeFollowingTimer?.cancel();
-    _positionEngine.reset();
-    await WakelockPlus.enable();
-    setState(() {
-      _loadingNavigation = true;
-      _navigationTargetIndex = index;
-      _following = true;
-    });
-
-    final route = await NavigationService.drivingRoute(
-      fromLat: position.latitude,
-      fromLng: position.longitude,
-      toLat: stop.latitude!,
-      toLng: stop.longitude!,
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _loadingNavigation = false;
-      _navigationRoute = route;
-    });
-
-    if (route != null) {
-      _positionEngine.update(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        accuracy: position.accuracy,
-        speed: position.speed,
-        heading: _navigationHeading(position),
-        timestamp: DateTime.now(),
-        route: route.points,
-      );
-    }
-
-    if (route == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Não foi possível calcular a rota pelas ruas.'),
-        ),
-      );
-      return;
-    }
-
-    final controller = _controller;
-    if (controller != null && _styleLoaded) {
-      await controller.addLine(
-        LineOptions(
-          geometry: route.points,
-          lineColor: '#FFFFFF',
-          lineWidth: 11,
-          lineOpacity: 0.95,
-        ),
-      );
-      await controller.addLine(
-        LineOptions(
-          geometry: route.points,
-          lineColor: '#1A73E8',
-          lineWidth: 7,
-          lineOpacity: 1.0,
-        ),
-      );
-
-      await controller.updateMyLocationTrackingMode(
-        MyLocationTrackingMode.none,
-      );
-      await _pushPosition(position);
-    }
-  }
-
-  String _navigationSummary() {
-    final route = _navigationRoute;
-    final index = _navigationTargetIndex;
-
-    if (index == null) {
-      return 'Números do mapa = ordem otimizada da rota';
-    }
-
-    if (_loadingNavigation) {
-      return 'Calculando rota para a parada ${index + 1}...';
-    }
-
-    if (route == null) {
-      return 'Parada ${index + 1} selecionada';
-    }
-
-    final km = route.distanceMeters / 1000;
-    final minutes = (route.durationSeconds / 60).round();
-
-    return 'Parada ${index + 1} • ${km.toStringAsFixed(km < 10 ? 1 : 0)} km • ~$minutes min';
-  }
   Future<void> _centerOnUser() async {
     final controller = _controller;
     if (controller == null) return;
@@ -598,25 +285,27 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     }
 
     setState(() => _following = true);
-
-    if (_navigationTargetIndex != null) {
-      await controller.updateMyLocationTrackingMode(
-        MyLocationTrackingMode.none,
-      );
-      await _updateSmoothNavigationCamera();
-    } else {
-      await controller.updateMyLocationTrackingMode(
-        MyLocationTrackingMode.trackingGps,
-      );
-      await controller.setTrackingCameraOptions(
-        tilt: _is3D ? 55 : 0,
-        duration: const Duration(milliseconds: 250),
-      );
-      await controller.easeCamera(
-        CameraUpdate.zoomTo(17),
-        duration: const Duration(milliseconds: 300),
-      );
-    }
+    await controller.updateMyLocationTrackingMode(
+      MyLocationTrackingMode.trackingGps,
+    );
+    await controller.setTrackingCameraOptions(
+      tilt: _is3D ? 55 : 0,
+      duration: const Duration(milliseconds: 250),
+    );
+    await controller.easeCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: LatLng(
+            _lastPosition!.latitude,
+            _lastPosition!.longitude,
+          ),
+          zoom: 17,
+          bearing: 0,
+          tilt: _is3D ? 55 : 0,
+        ),
+      ),
+      duration: const Duration(milliseconds: 300),
+    );
   }
 
   Future<void> _toggle3D() async {
@@ -626,9 +315,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     if (controller == null) return;
 
     if (_following && _lastPosition != null) {
-      await controller.updateMyLocationTrackingMode(
-        MyLocationTrackingMode.trackingGps,
-      );
       await controller.setTrackingCameraOptions(
         tilt: _is3D ? 55 : 0,
         duration: const Duration(milliseconds: 300),
@@ -866,18 +552,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                       ),
                     )
                   else ...[
-                    FilledButton.icon(
-                      onPressed: () async {
-                        Navigator.pop(sheetContext);
-                        await _startNavigation(index);
-                      },
-                      icon: const Icon(Icons.navigation_rounded),
-                      label: const Text('NAVEGAR NO APP'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
                     FilledButton.tonalIcon(
                       onPressed: () async {
                         for (final package in stop.packages) {
@@ -984,27 +658,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     }
   }
 
-  String _navigationEtaText() {
-    final route = _navigationRoute;
-    if (route == null) return '-- min';
-    return '~${(route.durationSeconds / 60).round()} min';
-  }
-
-  String _navigationDistanceText() {
-    final route = _navigationRoute;
-    if (route == null) return '-- km';
-    final km = route.distanceMeters / 1000;
-    return '${km.toStringAsFixed(km < 10 ? 1 : 0)} km';
-  }
-
-  String _navigationDestinationText() {
-    final index = _navigationTargetIndex;
-    if (index == null || index < 0 || index >= widget.route.stops.length) {
-      return 'Rota de entregas';
-    }
-    return widget.route.stops[index].address;
-  }
-
   @override
   Widget build(BuildContext context) {
     final routeStops = widget.route.stops
@@ -1029,219 +682,102 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     }
 
     return Scaffold(
-      appBar: _navigationTargetIndex != null
-          ? null
-          : AppBar(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.white,
-              elevation: 1,
-              titleSpacing: 0,
-              title: const Text(
-                'Mapa da rota',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-              ),
-              actions: [
-                if (missingCount > 0)
-                  IconButton(
-                    tooltip: 'Localizar endereços',
-                    onPressed:
-                        _locatingAddresses ? null : _locateMissingAddresses,
-                    icon: const Icon(Icons.location_searching_rounded),
-                  ),
-              ],
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 1,
+        title: const Text(
+          'Mapa da rota',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
+        actions: [
+          if (missingCount > 0)
+            IconButton(
+              tooltip: 'Localizar endereços sem GPS',
+              onPressed: _locatingAddresses ? null : _locateMissingAddresses,
+              icon: const Icon(Icons.location_searching_rounded),
             ),
+        ],
+      ),
       body: Stack(
         children: [
-          Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) => _handleMapInteraction(),
-            child: MapLibreMap(
-              styleString: MapLibreStyles.openfreemapLiberty,
-              initialCameraPosition: CameraPosition(
-                target: initialTarget,
-                zoom: routeStops.isEmpty ? 4 : 14,
-                tilt: _is3D ? 50 : 0,
-              ),
-              onMapCreated: (controller) {
-                _controller = controller;
-              },
-              onStyleLoadedCallback: _onStyleLoaded,
-              myLocationEnabled:
-                  _gpsEnabled && _navigationTargetIndex == null,
-              locationSource: const ManualLocationSource(),
-              myLocationTrackingMode:
-                  _following && _navigationTargetIndex == null
-                      ? MyLocationTrackingMode.trackingGps
-                      : MyLocationTrackingMode.none,
-              myLocationRenderMode: MyLocationRenderMode.gps,
-              compassEnabled: true,
-              rotateGesturesEnabled: true,
-              tiltGesturesEnabled: true,
-              annotationConsumeTapEvents: const [],
-              onMapClick: (_, coordinates) => _handleMapTap(coordinates),
-              onCameraTrackingDismissed: _handleTrackingDismissed,
+          MapLibreMap(
+            styleString: MapLibreStyles.openfreemapLiberty,
+            initialCameraPosition: CameraPosition(
+              target: initialTarget,
+              zoom: routeStops.isEmpty ? 4 : 14,
+              tilt: _is3D ? 50 : 0,
             ),
+            onMapCreated: (controller) {
+              _controller = controller;
+            },
+            onStyleLoadedCallback: _onStyleLoaded,
+            myLocationEnabled: _gpsEnabled,
+            locationSource: const ManualLocationSource(),
+            myLocationTrackingMode: _following
+                ? MyLocationTrackingMode.trackingGps
+                : MyLocationTrackingMode.none,
+            myLocationRenderMode: MyLocationRenderMode.gps,
+            compassEnabled: true,
+            rotateGesturesEnabled: true,
+            tiltGesturesEnabled: true,
+            annotationConsumeTapEvents: const [],
+            onMapClick: (_, coordinates) => _handleMapTap(coordinates),
+            onCameraTrackingDismissed: _handleTrackingDismissed,
           ),
-          if (_navigationTargetIndex != null && _following)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 158,
-              child: IgnorePointer(
-                child: Center(
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: const [
-                        BoxShadow(
-                          blurRadius: 10,
-                          offset: Offset(0, 3),
-                          color: Color(0x3D000000),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Transform.rotate(
-                        angle: -math.pi / 4,
-                        child: const Icon(
-                          Icons.navigation_rounded,
-                          color: Color(0xFF1A73E8),
-                          size: 34,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           Positioned(
             left: 12,
-            right: 12,
-            top: MediaQuery.paddingOf(context).top + 10,
-            child: Material(
-              elevation: 5,
-              borderRadius: BorderRadius.circular(
-                _navigationTargetIndex != null ? 18 : 16,
-              ),
-              color: _navigationTargetIndex != null
-                  ? const Color(0xFF1A73E8)
-                  : Colors.white.withValues(alpha: 0.96),
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  _navigationTargetIndex != null ? 8 : 12,
-                  10,
-                  14,
-                  10,
-                ),
-                child: Row(
-                  children: [
-                    if (_navigationTargetIndex != null)
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                        ),
-                        tooltip: 'Voltar',
-                      )
-                    else
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFE8F0FE),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          _gpsEnabled
-                              ? Icons.navigation_rounded
-                              : Icons.gps_off_rounded,
-                          color: const Color(0xFF1A73E8),
-                        ),
+            right: 72,
+            top: 12,
+            child: IgnorePointer(
+              child: Material(
+                elevation: 3,
+                borderRadius: BorderRadius.circular(14),
+                color: Colors.white.withValues(alpha: 0.96),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _gpsEnabled ? Icons.my_location_rounded : Icons.gps_off_rounded,
+                        color: _gpsEnabled ? const Color(0xFF1A73E8) : Colors.redAccent,
                       ),
-                    const SizedBox(width: 8),
-                    if (_navigationTargetIndex != null)
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.straight_rounded,
-                          color: Colors.white,
-                          size: 36,
-                        ),
-                      ),
-                    if (_navigationTargetIndex != null)
-                      const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _gpsError ??
-                                (_lastPosition == null
-                                    ? 'Procurando sua localização...'
-                                    : (_navigationTargetIndex != null
-                                        ? 'Siga pela rota'
-                                        : _navigationSummary())),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize:
-                                  _navigationTargetIndex != null ? 21 : 15,
-                              color: _navigationTargetIndex != null
-                                  ? Colors.white
-                                  : const Color(0xFF202124),
-                            ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _gpsError ??
+                              (_lastPosition == null
+                                  ? 'Obtendo sua localização...'
+                                  : 'GPS ativo • ${D}{routeStops.length} paradas no mapa'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF202124),
                           ),
-                          if (_navigationTargetIndex != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              _navigationDestinationText(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFE8F0FE),
-                              ),
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
           Positioned(
             right: 14,
-            bottom: _navigationTargetIndex != null ? 120 : 28,
+            bottom: 28,
             child: Column(
               children: [
-                if (!_following || _navigationTargetIndex == null) ...[
-                  FloatingActionButton.small(
-                    heroTag: 'gps-center',
-                    backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF1A73E8),
-                    elevation: 4,
-                    onPressed: _centerOnUser,
-                    tooltip: 'Centralizar',
-                    child: const Icon(Icons.my_location_rounded),
-                  ),
-                  const SizedBox(height: 10),
-                ],
+                FloatingActionButton.small(
+                  heroTag: 'gps-center',
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF1A73E8),
+                  elevation: 4,
+                  onPressed: _centerOnUser,
+                  tooltip: 'Minha posição',
+                  child: const Icon(Icons.my_location_rounded),
+                ),
+                const SizedBox(height: 10),
                 FloatingActionButton.small(
                   heroTag: 'map-3d',
                   backgroundColor: Colors.white,
@@ -1249,75 +785,11 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                   elevation: 4,
                   onPressed: _toggle3D,
                   tooltip: _is3D ? '2D' : '3D',
-                  child: Icon(
-                    _is3D ? Icons.layers_rounded : Icons.view_in_ar_rounded,
-                  ),
+                  child: Icon(_is3D ? Icons.layers_rounded : Icons.view_in_ar_rounded),
                 ),
               ],
             ),
           ),
-          if (_navigationTargetIndex != null)
-            Positioned(
-              left: 10,
-              right: 10,
-              bottom: 12,
-              child: Material(
-                elevation: 6,
-                borderRadius: BorderRadius.circular(24),
-                color: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _navigationEtaText(),
-                              style: const TextStyle(
-                                fontSize: 28,
-                                height: 1,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFF188038),
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              '${_navigationDistanceText()} • Parada ${_navigationTargetIndex! + 1}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF5F6368),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (!_following)
-                        FilledButton.tonalIcon(
-                          onPressed: _centerOnUser,
-                          icon: const Icon(Icons.navigation_rounded),
-                          label: const Text('CENTRALIZAR'),
-                        )
-                      else
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE8F0FE),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.more_horiz_rounded,
-                            color: Color(0xFF1A73E8),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           if (_locatingAddresses)
             Positioned(
               left: 12,
@@ -1329,7 +801,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                   child: Text(
                     _progress == null
                         ? 'Localizando endereços...'
-                        : 'Endereços: ${_progress!.done}/${_progress!.total} • ${_progress!.found} encontrados',
+                        : 'Endereços: ${D}{_progress!.done}/${D}{_progress!.total} • ${D}{_progress!.found} encontrados',
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -1339,4 +811,5 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       ),
     );
   }
+
 }
