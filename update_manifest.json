@@ -1,7 +1,7 @@
 {
-  "version": "0.3.6",
-  "build": 18,
+  "version": "0.3.7",
+  "build": 19,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Login movido para a area Conta. O app abre sem login e solicita autenticacao apenas ao importar manifesto, mantendo a verificacao de acesso, periodo de teste e administrador.",
+  "notes": "Remove a navegacao interna. O Felipe Route agora foca em mapa, localizacao atual, pontos das entregas, detalhes dos pedidos e abertura da parada no Google Maps ou Waze.",
   "force": false
 }
