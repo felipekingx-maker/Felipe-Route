@@ -1,7 +1,7 @@
 {
-  "version": "0.3.5",
-  "build": 17,
+  "version": "0.3.6",
+  "build": 18,
   "download_url": "https://github.com/felipekingx-maker/Felipe-Route/releases/download/beta-latest/Felipe-Route-Beta.apk",
-  "notes": "Permite explorar o mapa durante a navegacao sem a camera puxar de volta: toque, arraste ou de zoom para pausar o seguimento e toque em Centralizar para voltar ao carro.",
+  "notes": "Login movido para a area Conta. O app abre sem login e solicita autenticacao apenas ao importar manifesto, mantendo a verificacao de acesso, periodo de teste e administrador.",
   "force": false
 }
