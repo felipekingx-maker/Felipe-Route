@@ -228,9 +228,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     final position = _lastPosition;
     if (position != null) {
       await _pushPosition(position);
-      if (_navigationTargetIndex != null && _navigationRoute == null) {
-        await _startNavigation(_navigationTargetIndex!);
-      }
     } else {
       await controller.easeCamera(
         CameraUpdate.tiltTo(_is3D ? 50 : 0),
