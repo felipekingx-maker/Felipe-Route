@@ -969,7 +969,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             builder: (_) => RouteMapScreen(
               route: route,
               currentIndex: 0,
-              navigationTargetIndex: 0,
             ),
           ),
         );
