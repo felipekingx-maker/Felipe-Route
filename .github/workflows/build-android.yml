@@ -91,3 +91,22 @@ jobs:
             Baixe o APK anexado para instalar/atualizar.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish direct download
+        shell: bash
+        run: |
+          set -e
+          rm -rf /tmp/felipe-route-download
+          mkdir -p /tmp/felipe-route-download
+          cp Felipe-Route-Beta.apk /tmp/felipe-route-download/Felipe-Route-Beta.apk
+          cd /tmp/felipe-route-download
+          git init
+          git checkout -b direct-download
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Felipe-Route-Beta.apk
+          git commit -m "Atualiza APK de download direto"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin direct-download
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
