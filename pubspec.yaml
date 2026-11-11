@@ -1,7 +1,7 @@
 name: felipe_route
 description: Beta de app Android para entregadores com agrupamento de paradas e pacotes.
 publish_to: "none"
-version: 0.3.7+19
+version: 0.3.8+20
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
@@ -19,7 +19,6 @@ dependencies:
   package_info_plus: ^10.2.2
   url_launcher: ^6.3.2
   shared_preferences: ^2.5.4
-  supabase_flutter: ^2.9.1
 
 dev_dependencies:
   flutter_test:
